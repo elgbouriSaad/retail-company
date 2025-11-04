@@ -1,0 +1,185 @@
+import { User, Product, Order, ContactMessage } from '../types';
+
+export const mockUsers: User[] = [
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'user@demo.com',
+    role: 'user',
+    phone: '+1234567890',
+    address: '123 Main St, City, State 12345',
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: '2',
+    name: 'Admin User',
+    email: 'admin@demo.com',
+    role: 'admin',
+    phone: '+1987654321',
+    createdAt: '2024-01-01T10:00:00Z',
+  },
+  {
+    id: '3',
+    name: 'Jane Smith',
+    email: 'jane@demo.com',
+    role: 'user',
+    phone: '+1122334455',
+    address: '456 Oak Ave, Town, State 67890',
+    createdAt: '2024-02-01T10:00:00Z',
+  },
+];
+
+export const mockProducts: Product[] = [
+  {
+    id: '1',
+    name: 'Cotton Fabric Roll',
+    description: 'Premium quality cotton fabric roll, perfect for various sewing projects. Soft texture and vibrant colors.',
+    price: 29.99,
+    category: 'fabrics',
+    images: ['https://images.pexels.com/photos/6801648/pexels-photo-6801648.jpeg'],
+    sizes: ['1m', '2m', '5m', '10m'],
+    stock: 50,
+    availability: true,
+    createdAt: '2024-01-10T10:00:00Z',
+  },
+  {
+    id: '2',
+    name: 'Professional Sewing Kit',
+    description: 'Complete sewing kit with premium tools including scissors, needles, measuring tape, and thread spools.',
+    price: 89.99,
+    category: 'kits',
+    images: ['https://images.pexels.com/photos/8089238/pexels-photo-8089238.jpeg'],
+    sizes: ['Standard'],
+    stock: 25,
+    availability: true,
+    createdAt: '2024-01-12T10:00:00Z',
+  },
+  {
+    id: '3',
+    name: 'Vintage Style Dress',
+    description: 'Handcrafted vintage-style dress with intricate details. Made from high-quality materials.',
+    price: 149.99,
+    category: 'clothes',
+    images: ['https://images.pexels.com/photos/985635/pexels-photo-985635.jpeg'],
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    stock: 15,
+    availability: true,
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: '4',
+    name: 'Silk Thread Set',
+    description: 'Luxury silk thread set in multiple colors. Perfect for embroidery and detailed work.',
+    price: 45.99,
+    category: 'threads',
+    images: ['https://images.pexels.com/photos/6801647/pexels-photo-6801647.jpeg'],
+    sizes: ['Standard'],
+    stock: 30,
+    availability: true,
+    createdAt: '2024-01-18T10:00:00Z',
+  },
+  {
+    id: '5',
+    name: 'Designer Blouse',
+    description: 'Elegant designer blouse with modern cut and premium fabric. Perfect for professional wear.',
+    price: 79.99,
+    category: 'clothes',
+    images: ['https://images.pexels.com/photos/1536619/pexels-photo-1536619.jpeg'],
+    sizes: ['XS', 'S', 'M', 'L', 'XL'],
+    stock: 20,
+    availability: true,
+    createdAt: '2024-01-20T10:00:00Z',
+  },
+  {
+    id: '6',
+    name: 'Denim Fabric',
+    description: 'High-quality denim fabric suitable for jeans, jackets, and casual wear projects.',
+    price: 39.99,
+    category: 'fabrics',
+    images: ['https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg'],
+    sizes: ['1m', '2m', '5m'],
+    stock: 40,
+    availability: true,
+    createdAt: '2024-01-22T10:00:00Z',
+  },
+];
+
+export const mockOrders: Order[] = [
+  {
+    id: '1',
+    userId: '1',
+    products: [
+      {
+        productId: '1',
+        productName: 'Cotton Fabric Roll',
+        quantity: 2,
+        size: '2m',
+        price: 29.99,
+      },
+      {
+        productId: '2',
+        productName: 'Professional Sewing Kit',
+        quantity: 1,
+        size: 'Standard',
+        price: 89.99,
+      },
+    ],
+    status: 'delivered',
+    totalAmount: 149.97,
+    createdAt: '2024-02-01T10:00:00Z',
+    updatedAt: '2024-02-05T10:00:00Z',
+  },
+  {
+    id: '2',
+    userId: '1',
+    products: [
+      {
+        productId: '3',
+        productName: 'Vintage Style Dress',
+        quantity: 1,
+        size: 'M',
+        price: 149.99,
+      },
+    ],
+    status: 'in-progress',
+    totalAmount: 149.99,
+    createdAt: '2024-02-10T10:00:00Z',
+    updatedAt: '2024-02-12T10:00:00Z',
+  },
+  {
+    id: '3',
+    userId: '3',
+    products: [
+      {
+        productId: '4',
+        productName: 'Silk Thread Set',
+        quantity: 3,
+        size: 'Standard',
+        price: 45.99,
+      },
+    ],
+    status: 'pending',
+    totalAmount: 137.97,
+    createdAt: '2024-02-15T10:00:00Z',
+    updatedAt: '2024-02-15T10:00:00Z',
+  },
+];
+
+export const mockContactMessages: ContactMessage[] = [
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    message: 'I need more information about the cotton fabric quality.',
+    productId: '1',
+    createdAt: '2024-02-20T10:00:00Z',
+  },
+];
+
+export const categories = [
+  { id: 'all', name: 'All Products' },
+  { id: 'fabrics', name: 'Fabrics' },
+  { id: 'clothes', name: 'Clothes' },
+  { id: 'kits', name: 'Sewing Kits' },
+  { id: 'threads', name: 'Threads' },
+];
