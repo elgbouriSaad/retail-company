@@ -50,9 +50,9 @@ export const AdminDashboard: React.FC = () => {
   ];
 
   const orderStatusData = [
-    { status: 'Pending', count: pendingOrders, color: 'bg-yellow-500', revenue: pendingRevenue },
-    { status: 'In Progress', count: inProgressOrders, color: 'bg-blue-500', revenue: inProgressRevenue },
-    { status: 'Delivered', count: deliveredOrders, color: 'bg-green-500', revenue: completedRevenue },
+    { status: 'En Attente', count: pendingOrders, color: 'bg-yellow-500', revenue: pendingRevenue },
+    { status: 'En Cours', count: inProgressOrders, color: 'bg-blue-500', revenue: inProgressRevenue },
+    { status: 'Livrées', count: deliveredOrders, color: 'bg-green-500', revenue: completedRevenue },
   ];
 
   const lowStockProducts = mockProducts.filter(p => p.stock < 10);
@@ -76,8 +76,8 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-        <p className="text-slate-400">Overview of your business metrics and performance</p>
+        <h1 className="text-3xl font-bold text-white mb-2">Tableau de Bord Admin</h1>
+        <p className="text-slate-400">Aperçu de vos métriques et performances commerciales</p>
       </div>
 
       {/* Financial Overview Cards */}
@@ -85,28 +85,28 @@ export const AdminDashboard: React.FC = () => {
         <Card className="text-center bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <DollarSign className="w-8 h-8 text-green-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">${totalRevenue.toFixed(2)}</p>
-          <p className="text-slate-400">Total Revenue</p>
+          <p className="text-slate-400">Revenu Total</p>
           <div className="mt-2 text-xs">
             <span className="text-green-400">↗ +12.5%</span>
-            <span className="text-slate-500 ml-1">vs last month</span>
+            <span className="text-slate-500 ml-1">vs mois dernier</span>
           </div>
         </Card>
 
         <Card className="text-center bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">${completedRevenue.toFixed(2)}</p>
-          <p className="text-slate-400">Completed Revenue</p>
+          <p className="text-slate-400">Revenu Complété</p>
           <div className="mt-2 text-xs">
-            <span className="text-blue-400">{deliveredOrders} orders</span>
+            <span className="text-blue-400">{deliveredOrders} commandes</span>
           </div>
         </Card>
 
         <Card className="text-center bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
           <Clock className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">${pendingRevenue.toFixed(2)}</p>
-          <p className="text-slate-400">Pending Revenue</p>
+          <p className="text-slate-400">Revenu en Attente</p>
           <div className="mt-2 text-xs">
-            <span className="text-yellow-400">{pendingOrders} orders</span>
+            <span className="text-yellow-400">{pendingOrders} commandes</span>
           </div>
         </Card>
 
@@ -126,16 +126,16 @@ export const AdminDashboard: React.FC = () => {
         <Card className="text-center">
           <Users className="w-8 h-8 text-blue-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{totalUsers}</p>
-          <p className="text-slate-400">Total Users</p>
+          <p className="text-slate-400">Total Utilisateurs</p>
         </Card>
 
         <Card className="text-center">
           <Package className="w-8 h-8 text-green-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{totalProducts}</p>
-          <p className="text-slate-400">Products</p>
+          <p className="text-slate-400">Articles</p>
           {lowStockProducts.length > 0 && (
             <div className="mt-1 text-xs text-yellow-400">
-              {lowStockProducts.length} low stock
+              {lowStockProducts.length} stock faible
             </div>
           )}
         </Card>
@@ -143,20 +143,20 @@ export const AdminDashboard: React.FC = () => {
         <Card className="text-center">
           <ShoppingCart className="w-8 h-8 text-purple-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{totalOrders}</p>
-          <p className="text-slate-400">Total Orders</p>
+          <p className="text-slate-400">Total Commandes</p>
         </Card>
 
         <Card className="text-center">
           <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{outOfStockProducts.length}</p>
-          <p className="text-slate-400">Out of Stock</p>
+          <p className="text-slate-400">Rupture de Stock</p>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}
         <Card>
-          <h2 className="text-xl font-semibold text-white mb-6">Monthly Revenue Trend</h2>
+          <h2 className="text-xl font-semibold text-white mb-6">Tendance du Revenu Mensuel</h2>
           <div className="space-y-4">
             {monthlyRevenue.map((month, index) => {
               const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue));
@@ -247,7 +247,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
                   <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="text-red-400 font-medium">Out of Stock</span>
+                  <span className="text-red-400 font-medium">Rupture de Stock</span>
                 </div>
                 {outOfStockProducts.slice(0, 3).map(product => (
                   <div key={product.id} className="text-sm text-slate-300">
@@ -261,12 +261,12 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
                   <Clock className="w-4 h-4 text-yellow-400" />
-                  <span className="text-yellow-400 font-medium">Low Stock</span>
+                  <span className="text-yellow-400 font-medium">Stock Faible</span>
                 </div>
                 {lowStockProducts.slice(0, 3).map(product => (
                   <div key={product.id} className="text-sm text-slate-300 flex justify-between">
                     <span>{product.name}</span>
-                    <span className="text-yellow-400">{product.stock} left</span>
+                    <span className="text-yellow-400">{product.stock} restant</span>
                   </div>
                 ))}
               </div>
@@ -284,7 +284,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <Card>
-        <h2 className="text-xl font-semibold text-white mb-6">Quick Actions</h2>
+        <h2 className="text-xl font-semibold text-white mb-6">Actions Rapides</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div 
             className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
@@ -300,8 +300,8 @@ export const AdminDashboard: React.FC = () => {
             onClick={() => setShowPendingOrdersModal(true)}
           >
             <Clock className="w-8 h-8 text-yellow-500 mb-2" />
-            <h3 className="text-white font-semibold">Pending Orders</h3>
-            <p className="text-slate-400 text-sm">{pendingOrders} orders need attention</p>
+            <h3 className="text-white font-semibold">Commandes en Attente</h3>
+            <p className="text-slate-400 text-sm">{pendingOrders} commandes nécessitent votre attention</p>
           </div>
 
           <div 
@@ -319,15 +319,15 @@ export const AdminDashboard: React.FC = () => {
       <Modal
         isOpen={showAddProductModal}
         onClose={() => setShowAddProductModal(false)}
-        title="Add New Product"
+        title="Ajouter un Nouvel Article"
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="Product Name"
+            label="Nom de l'Article"
             value={productForm.name}
             onChange={(value) => setProductForm(prev => ({ ...prev, name: value }))}
-            placeholder="Enter product name"
+            placeholder="Entrez le nom de l'article"
             required
           />
 
@@ -338,7 +338,7 @@ export const AdminDashboard: React.FC = () => {
             <textarea
               value={productForm.description}
               onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Enter product description"
+              placeholder="Entrez la description de l'article"
               rows={3}
               className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
             />
@@ -346,7 +346,7 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Price"
+              label="Prix"
               type="number"
               step="0.01"
               value={productForm.price}
@@ -357,7 +357,7 @@ export const AdminDashboard: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Category
+                Catégorie
               </label>
               <select
                 value={productForm.category}
@@ -374,14 +374,14 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Sizes (comma-separated)"
+              label="Tailles (séparées par des virgules)"
               value={productForm.sizes}
               onChange={(value) => setProductForm(prev => ({ ...prev, sizes: value }))}
               placeholder="XS, S, M, L, XL"
             />
 
             <Input
-              label="Stock Quantity"
+              label="Quantité en Stock"
               type="number"
               value={productForm.stock}
               onChange={(value) => setProductForm(prev => ({ ...prev, stock: value }))}
@@ -391,18 +391,18 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <Input
-            label="Image URLs (comma-separated)"
+            label="URLs des Images (séparées par des virgules)"
             value={productForm.images}
             onChange={(value) => setProductForm(prev => ({ ...prev, images: value }))}
-            placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
+            placeholder="https://exemple.com/image1.jpg, https://exemple.com/image2.jpg"
           />
 
           <div className="flex space-x-3 pt-4">
             <Button onClick={handleAddProduct}>
-              Add Product
+              Ajouter l'Article
             </Button>
             <Button variant="secondary" onClick={() => setShowAddProductModal(false)}>
-              Cancel
+              Annuler
             </Button>
           </div>
         </div>
@@ -412,7 +412,7 @@ export const AdminDashboard: React.FC = () => {
       <Modal
         isOpen={showPendingOrdersModal}
         onClose={() => setShowPendingOrdersModal(false)}
-        title="Pending Orders"
+        title="Commandes en Attente"
         size="lg"
       >
         <div className="space-y-4">
@@ -458,7 +458,7 @@ export const AdminDashboard: React.FC = () => {
       <Modal
         isOpen={showAnalyticsModal}
         onClose={() => setShowAnalyticsModal(false)}
-        title="Analytics Overview"
+        title="Aperçu des Analyses"
         size="xl"
       >
         <div className="space-y-6">

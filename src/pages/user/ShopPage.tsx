@@ -21,16 +21,16 @@ export const ShopPage: React.FC = () => {
     return matchesSearch && matchesCategory && matchesPrice && product.availability;
   });
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (product: Product) => {
     addToCart(product, 1, product.sizes[0]);
     alert(`${product.name} added to cart!`);
   };
 
-  const handleViewDetails = (product: any) => {
+  const handleViewDetails = (product: Product) => {
     alert(`Viewing details for ${product.name}. This would open a detailed product page.`);
   };
 
-  const handleQuickOrder = (product: any) => {
+  const handleQuickOrder = (product: Product) => {
     addToCart(product, 1, product.sizes[0]);
     alert(`${product.name} added to cart and ready for quick checkout!`);
   };

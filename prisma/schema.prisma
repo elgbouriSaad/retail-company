@@ -158,9 +158,10 @@ model CustomOrder {
   pongeItems         String   @db.Text // JSON array of ponge items
   referenceMaterials String   @db.Text // JSON array of reference materials
   images             String?  @db.Text // JSON array of image URLs
-  startDate          DateTime
+  startDate          DateTime?
   finishDate         DateTime
   downPayment        Decimal  @db.Decimal(10, 2)
+  advanceMoney       Decimal  @default(0) @db.Decimal(10, 2)
   paymentMonths      Int
   totalAmount        Decimal  @db.Decimal(10, 2)
   status             OrderStatus @default(PENDING)

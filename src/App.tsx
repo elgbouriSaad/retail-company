@@ -12,7 +12,7 @@ import { OrdersPage } from './pages/user/OrdersPage';
 import { ContactPage } from './pages/user/ContactPage';
 import { ProfilePage } from './pages/user/ProfilePage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { ProductManagement } from './pages/admin/ProductManagement';
+import { CatalogueManagement } from './pages/admin/CatalogueManagement';
 import { UserManagement } from './pages/admin/UserManagement';
 import { OrderManagement } from './pages/admin/OrderManagement';
 import { InvoiceManagement } from './pages/admin/InvoiceManagement';
@@ -79,10 +79,10 @@ function App() {
               </AuthGuard>
             } />
             
-            <Route path="/admin/products" element={
+            <Route path="/admin/catalogue" element={
               <AuthGuard requiredRole="admin">
                 <Layout>
-                  <ProductManagement />
+                  <CatalogueManagement />
                 </Layout>
               </AuthGuard>
             } />

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Package, Search, Filter, Eye, Truck, CheckCircle, Clock, X, Plus, Upload, Trash2, Calendar } from 'lucide-react';
 import { mockOrders, mockUsers } from '../../data/mockData';
-import { OrderForm, PongeItem, ReferenceMaterial } from '../../types';
+import { OrderForm, PongeItem, ReferenceMaterial, Order, Invoice } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -13,20 +13,21 @@ export const OrderManagement: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderForm, setOrderForm] = useState<OrderForm>({
     clientName: '',
     phoneNumber: '',
-    pongeItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
+    pongeItems: [{ id: '1', description: '' }],
     referenceMaterials: [{ id: '1', name: '', description: '', quantity: 1 }],
     images: [],
     startDate: '',
     finishDate: '',
     downPayment: 0,
+    advanceMoney: 0,
     paymentMonths: 1,
   });
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   const filteredOrders = orders.filter(order => {
     const user = mockUsers.find(u => u.id === order.userId);
@@ -37,15 +38,15 @@ export const OrderManagement: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleStatusUpdate = (orderId: string, newStatus: string) => {
+  const handleStatusUpdate = (orderId: string, newStatus: Order['status']) => {
     setOrders(prev => prev.map(order => 
       order.id === orderId 
-        ? { ...order, status: newStatus as any, updatedAt: new Date().toISOString() }
+        ? { ...order, status: newStatus, updatedAt: new Date().toISOString() }
         : order
     ));
   };
 
-  const handleViewOrder = (order: any) => {
+  const handleViewOrder = (order: Order) => {
     setSelectedOrder(order);
     setShowOrderModal(true);
   };
@@ -76,17 +77,6 @@ export const OrderManagement: React.FC = () => {
     }
   };
 
-  const getNextStatus = (currentStatus: string) => {
-    switch (currentStatus) {
-      case 'pending':
-        return 'in-progress';
-      case 'in-progress':
-        return 'delivered';
-      default:
-        return currentStatus;
-    }
-  };
-
   const canAdvanceStatus = (status: string) => {
     return status === 'pending' || status === 'in-progress';
   };
@@ -95,9 +85,6 @@ export const OrderManagement: React.FC = () => {
     const newItem: PongeItem = {
       id: Date.now().toString(),
       description: '',
-      quantity: 1,
-      unitPrice: 0,
-      total: 0,
     };
     setOrderForm(prev => ({
       ...prev,
@@ -112,19 +99,12 @@ export const OrderManagement: React.FC = () => {
     }));
   };
 
-  const updatePongeItem = (id: string, field: keyof PongeItem, value: any) => {
+  const updatePongeItem = (id: string, field: keyof PongeItem, value: string) => {
     setOrderForm(prev => ({
       ...prev,
-      pongeItems: prev.pongeItems.map(item => {
-        if (item.id === id) {
-          const updatedItem = { ...item, [field]: value };
-          if (field === 'quantity' || field === 'unitPrice') {
-            updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
-          }
-          return updatedItem;
-        }
-        return item;
-      }),
+      pongeItems: prev.pongeItems.map(item =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
     }));
   };
 
@@ -148,7 +128,7 @@ export const OrderManagement: React.FC = () => {
     }));
   };
 
-  const updateReferenceMaterial = (id: string, field: keyof ReferenceMaterial, value: any) => {
+  const updateReferenceMaterial = (id: string, field: keyof ReferenceMaterial, value: string | number) => {
     setOrderForm(prev => ({
       ...prev,
       referenceMaterials: prev.referenceMaterials.map(material =>
@@ -194,28 +174,60 @@ export const OrderManagement: React.FC = () => {
     return `INV-${year}${month}-${nextNumber}-${randomSuffix}`;
   };
 
-  const createInvoiceForOrder = (order: any) => {
-    const invoiceItems = order.pongeItems?.map((item: any) => ({
+  const createInvoiceForOrder = (order: { 
+    id: string; 
+    pongeItems?: PongeItem[]; 
+    products?: { productId: string; productName: string; quantity: number; price: number }[];
+    downPayment?: number;
+    advanceMoney?: number;
+    paymentMonths?: number;
+    userId?: string;
+    clientName?: string;
+    createdAt: string;
+  }) => {
+    const invoiceItems = order.pongeItems?.map((item: PongeItem, index: number) => ({
       id: item.id,
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      total: item.total,
+      description: item.description || `Ponge Item ${index + 1}`,
+      quantity: 1,
+      unitPrice: 0,
+      total: 0,
       category: 'labor' as const
-    })) || order.products.map((product: any) => ({
+    })) || order.products?.map((product) => ({
       id: product.productId,
       description: product.productName,
       quantity: product.quantity,
       unitPrice: product.price,
       total: product.price * product.quantity,
       category: 'fabric' as const
-    }));
+    })) || [];
 
-    const subtotal = invoiceItems.reduce((sum: number, item: any) => sum + item.total, 0);
+    const subtotal = invoiceItems.reduce((sum: number, item) => sum + item.total, 0);
     const downPayment = order.downPayment || 0;
-    const amountDue = subtotal - downPayment;
+    const advanceMoney = order.advanceMoney || 0;
+    const totalPaid = downPayment;
+    const amountDue = subtotal - totalPaid;
     
-    const newInvoice = {
+    // Build detailed payment notes
+    let paymentNotes = `Auto-generated from Order #${order.id}. `;
+    if (order.pongeItems && order.pongeItems.length > 0) {
+      paymentNotes += `Ponge Items: ${order.pongeItems.map((item) => item.description).join(', ')}. `;
+    }
+    if (downPayment > 0 || advanceMoney > 0) {
+      paymentNotes += `Initial payment breakdown: `;
+      if (downPayment - advanceMoney > 0) {
+        paymentNotes += `Down Payment: $${(downPayment - advanceMoney).toFixed(2)}`;
+      }
+      if (advanceMoney > 0) {
+        if (downPayment - advanceMoney > 0) paymentNotes += `, `;
+        paymentNotes += `Advance Money (1st Month): $${advanceMoney.toFixed(2)}`;
+      }
+      paymentNotes += `. `;
+    }
+    paymentNotes += `Payment terms: ${order.paymentMonths || 1} months.`;
+    
+    const status: 'paid' | 'partial' | 'unpaid' = totalPaid >= subtotal ? 'paid' : totalPaid > 0 ? 'partial' : 'unpaid';
+    
+    const newInvoice: Invoice = {
       id: Date.now().toString() + '-inv',
       reference: generateInvoiceReference(),
       clientId: order.userId || 'custom-client',
@@ -224,28 +236,41 @@ export const OrderManagement: React.FC = () => {
       items: invoiceItems,
       subtotal,
       total: subtotal,
-      amountPaid: downPayment,
+      amountPaid: totalPaid,
       amountDue,
-      status: downPayment >= subtotal ? 'paid' : downPayment > 0 ? 'partial' : 'unpaid',
-      notes: `Auto-generated from Order #${order.id}. Payment terms: ${order.paymentMonths || 1} months.`,
+      status,
+      notes: paymentNotes,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     setInvoices(prev => [...prev, newInvoice]);
     
-    // Create initial payment record if down payment was made
-    if (downPayment > 0) {
+    // Create initial payment record if payment was made
+    if (totalPaid > 0) {
       // This would typically be handled by the payment system
-      console.log('Payment record created for invoice:', newInvoice.reference, 'Amount:', downPayment);
+      console.log('Payment record created for invoice:', newInvoice.reference, 'Amount:', totalPaid);
     }
 
     return newInvoice;
   };
 
   const handleCreateOrder = () => {
-    // Calculate total from ponge items
-    const total = orderForm.pongeItems.reduce((sum, item) => sum + item.total, 0);
+    // Determine status based on start date
+    let orderStatus: 'pending' | 'in-progress' = 'pending';
+    if (orderForm.startDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDate = new Date(orderForm.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      if (startDate.getTime() === today.getTime()) {
+        orderStatus = 'in-progress';
+      }
+    }
+    
+    // Calculate total down payment (down payment + advance money)
+    const totalDownPayment = orderForm.downPayment + orderForm.advanceMoney;
     
     const newOrder = {
       id: Date.now().toString(),
@@ -253,20 +278,22 @@ export const OrderManagement: React.FC = () => {
       products: orderForm.pongeItems.map(item => ({
         productId: item.id,
         productName: item.description,
-        quantity: item.quantity,
-        size: 'Custom',
-        price: item.unitPrice,
+        quantity: 1,
+        size: 'Ponge',
+        price: 0,
       })),
-      status: 'pending' as const,
-      totalAmount: total,
+      status: orderStatus,
+      totalAmount: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       clientName: orderForm.clientName,
       phoneNumber: orderForm.phoneNumber,
+      pongeItems: orderForm.pongeItems,
       referenceMaterials: orderForm.referenceMaterials,
       startDate: orderForm.startDate,
       finishDate: orderForm.finishDate,
-      downPayment: orderForm.downPayment,
+      downPayment: totalDownPayment,
+      advanceMoney: orderForm.advanceMoney,
       paymentMonths: orderForm.paymentMonths,
       images: uploadedImages,
     };
@@ -277,7 +304,7 @@ export const OrderManagement: React.FC = () => {
     const invoice = createInvoiceForOrder(newOrder);
     
     // Show success message with invoice reference
-    alert(`Order created successfully! Invoice ${invoice.reference} has been generated automatically.`);
+    alert(`Commande créée avec succès ! La facture ${invoice.reference} a été générée automatiquement.`);
     
     setShowCreateOrderModal(false);
     
@@ -285,12 +312,13 @@ export const OrderManagement: React.FC = () => {
     setOrderForm({
       clientName: '',
       phoneNumber: '',
-      pongeItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
+      pongeItems: [{ id: '1', description: '' }],
       referenceMaterials: [{ id: '1', name: '', description: '', quantity: 1 }],
       images: [],
       startDate: '',
       finishDate: '',
       downPayment: 0,
+      advanceMoney: 0,
       paymentMonths: 1,
     });
     setUploadedImages([]);
@@ -304,12 +332,8 @@ export const OrderManagement: React.FC = () => {
     handleStatusUpdate(orderId, 'delivered');
   };
 
-  const handleViewOrderDetails = (order: any) => {
-    handleViewOrder(order);
-  };
-
   const handleDeleteOrder = (orderId: string) => {
-    if (confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette commande ? Cette action ne peut pas être annulée.')) {
       setOrders(prev => prev.filter(order => order.id !== orderId));
     }
   };
@@ -318,11 +342,11 @@ export const OrderManagement: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Order Management</h1>
-          <p className="text-slate-400">Track and manage all customer orders</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Gestion des Commandes</h1>
+          <p className="text-slate-400">Suivez et gérez toutes les commandes clients</p>
         </div>
         <Button icon={Plus} onClick={() => setShowCreateOrderModal(true)}>
-          Create Order
+          Créer une Commande
         </Button>
       </div>
 
@@ -331,7 +355,7 @@ export const OrderManagement: React.FC = () => {
         <Card className="text-center">
           <Package className="w-8 h-8 text-blue-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{orders.length}</p>
-          <p className="text-slate-400">Total Orders</p>
+          <p className="text-slate-400">Total Commandes</p>
         </Card>
 
         <Card className="text-center">
@@ -339,7 +363,7 @@ export const OrderManagement: React.FC = () => {
           <p className="text-2xl font-bold text-white">
             {orders.filter(o => o.status === 'pending').length}
           </p>
-          <p className="text-slate-400">Pending</p>
+          <p className="text-slate-400">En Attente</p>
         </Card>
 
         <Card className="text-center">
@@ -347,7 +371,7 @@ export const OrderManagement: React.FC = () => {
           <p className="text-2xl font-bold text-white">
             {orders.filter(o => o.status === 'in-progress').length}
           </p>
-          <p className="text-slate-400">In Progress</p>
+          <p className="text-slate-400">En Cours</p>
         </Card>
 
         <Card className="text-center">
@@ -355,7 +379,7 @@ export const OrderManagement: React.FC = () => {
           <p className="text-2xl font-bold text-white">
             {orders.filter(o => o.status === 'delivered').length}
           </p>
-          <p className="text-slate-400">Delivered</p>
+          <p className="text-slate-400">Livrées</p>
         </Card>
       </div>
 
@@ -363,7 +387,7 @@ export const OrderManagement: React.FC = () => {
       <Card>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Search orders..."
+            placeholder="Rechercher des commandes..."
             value={searchTerm}
             onChange={setSearchTerm}
             icon={Search}
@@ -374,15 +398,15 @@ export const OrderManagement: React.FC = () => {
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="in-progress">In Progress</option>
-            <option value="delivered">Delivered</option>
+            <option value="all">Tous les Statuts</option>
+            <option value="pending">En Attente</option>
+            <option value="in-progress">En Cours</option>
+            <option value="delivered">Livrées</option>
           </select>
 
           <div className="text-slate-300 flex items-center">
             <Filter className="w-4 h-4 mr-2" />
-            {filteredOrders.length} orders
+            {filteredOrders.length} commandes
           </div>
         </div>
       </Card>
@@ -393,10 +417,10 @@ export const OrderManagement: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left py-3 text-slate-300 font-medium">Order ID</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Customer</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Products</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Status</th>
+                <th className="text-left py-3 text-slate-300 font-medium">ID Commande</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Client</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Articles</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Date</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Total</th>
                 <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
@@ -411,7 +435,7 @@ export const OrderManagement: React.FC = () => {
                     <td className="py-4 text-white font-mono">#{order.id}</td>
                     <td className="py-4">
                       <div>
-                        <p className="text-white font-semibold">{user?.name || 'Unknown User'}</p>
+                        <p className="text-white font-semibold">{user?.name || 'Utilisateur Inconnu'}</p>
                         <p className="text-slate-400 text-sm">{user?.email}</p>
                       </div>
                     </td>
@@ -424,7 +448,7 @@ export const OrderManagement: React.FC = () => {
                         ))}
                         {order.products.length > 2 && (
                           <div className="text-slate-400 text-xs">
-                            +{order.products.length - 2} more items
+                            +{order.products.length - 2} articles de plus
                           </div>
                         )}
                       </div>
@@ -439,7 +463,7 @@ export const OrderManagement: React.FC = () => {
                       <div>
                         <p>{new Date(order.createdAt).toLocaleDateString()}</p>
                         <p className="text-xs text-slate-400">
-                          Updated: {new Date(order.updatedAt).toLocaleDateString()}
+                          Mis à jour: {new Date(order.updatedAt).toLocaleDateString()}
                         </p>
                       </div>
                     </td>
@@ -454,7 +478,7 @@ export const OrderManagement: React.FC = () => {
                           icon={Eye}
                           onClick={() => handleViewOrder(order)}
                         >
-                          View
+                          Voir
                         </Button>
                         {canAdvanceStatus(order.status) && (
                           <Button
@@ -465,7 +489,7 @@ export const OrderManagement: React.FC = () => {
                               : handleMarkDelivered(order.id)
                             }
                           >
-                            {order.status === 'pending' ? 'Start Processing' : 'Mark Delivered'}
+                            {order.status === 'pending' ? 'Commencer le Traitement' : 'Marquer comme Livrée'}
                           </Button>
                         )}
                         <Button
@@ -473,7 +497,7 @@ export const OrderManagement: React.FC = () => {
                           variant="danger"
                           onClick={() => handleDeleteOrder(order.id)}
                         >
-                          Delete
+                          Supprimer
                         </Button>
                       </div>
                     </td>
@@ -489,33 +513,33 @@ export const OrderManagement: React.FC = () => {
       <Modal
         isOpen={showOrderModal}
         onClose={() => setShowOrderModal(false)}
-        title={`Order #${selectedOrder?.id}`}
+        title={`Commande #${selectedOrder?.id}`}
         size="lg"
       >
         {selectedOrder && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-white font-semibold mb-3">Customer Information</h4>
+                <h4 className="text-white font-semibold mb-3">Informations Client</h4>
                 {(() => {
                   const user = mockUsers.find(u => u.id === selectedOrder.userId);
                   return (
                     <div className="space-y-2 text-sm">
                       <div>
-                        <span className="text-slate-400">Name:</span>
-                        <span className="text-white ml-2">{user?.name || 'Unknown'}</span>
+                        <span className="text-slate-400">Nom:</span>
+                        <span className="text-white ml-2">{user?.name || 'Inconnu'}</span>
                       </div>
                       <div>
                         <span className="text-slate-400">Email:</span>
-                        <span className="text-white ml-2">{user?.email || 'Unknown'}</span>
+                        <span className="text-white ml-2">{user?.email || 'Inconnu'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400">Phone:</span>
-                        <span className="text-white ml-2">{user?.phone || 'Not provided'}</span>
+                        <span className="text-slate-400">Téléphone:</span>
+                        <span className="text-white ml-2">{user?.phone || 'Non fourni'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400">Address:</span>
-                        <span className="text-white ml-2">{user?.address || 'Not provided'}</span>
+                        <span className="text-slate-400">Adresse:</span>
+                        <span className="text-white ml-2">{user?.address || 'Non fournie'}</span>
                       </div>
                     </div>
                   );
@@ -523,43 +547,43 @@ export const OrderManagement: React.FC = () => {
               </div>
 
               <div>
-                <h4 className="text-white font-semibold mb-3">Order Information</h4>
+                <h4 className="text-white font-semibold mb-3">Informations Commande</h4>
                 <div className="space-y-2 text-sm">
                   <div>
-                    <span className="text-slate-400">Order Date:</span>
+                    <span className="text-slate-400">Date Commande:</span>
                     <span className="text-white ml-2">{new Date(selectedOrder.createdAt).toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Last Updated:</span>
+                    <span className="text-slate-400">Dernière Mise à Jour:</span>
                     <span className="text-white ml-2">{new Date(selectedOrder.updatedAt).toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Status:</span>
+                    <span className="text-slate-400">Statut:</span>
                     <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
                       {getStatusIcon(selectedOrder.status)}
                       <span className="ml-1 capitalize">{selectedOrder.status.replace('-', ' ')}</span>
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Total Amount:</span>
-                    <span className="text-white ml-2 font-semibold">${selectedOrder.totalAmount.toFixed(2)}</span>
+                    <span className="text-slate-400">Montant Total:</span>
+                    <span className="text-white ml-2 font-semibold">{selectedOrder.totalAmount.toFixed(2)} DH</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <div>
-              <h4 className="text-white font-semibold mb-3">Order Items</h4>
+              <h4 className="text-white font-semibold mb-3">Articles de la Commande</h4>
               <div className="space-y-3">
-                {selectedOrder.products.map((product: any, idx: number) => (
+                {selectedOrder.products.map((product, idx: number) => (
                   <div key={idx} className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                     <div>
                       <p className="text-white font-semibold">{product.productName}</p>
-                      <p className="text-slate-400 text-sm">Size: {product.size} | Quantity: {product.quantity}</p>
+                      <p className="text-slate-400 text-sm">Taille: {product.size} | Quantité: {product.quantity}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-white font-semibold">${(product.price * product.quantity).toFixed(2)}</p>
-                      <p className="text-slate-400 text-sm">${product.price.toFixed(2)} each</p>
+                      <p className="text-slate-400 text-sm">{product.price.toFixed(2)} DH chacun</p>
                     </div>
                   </div>
                 ))}
@@ -578,20 +602,20 @@ export const OrderManagement: React.FC = () => {
                     setShowOrderModal(false);
                   }}
                 >
-                  {order.status === 'pending' ? 'Start Processing' : 'View Details'}
+                  {selectedOrder.status === 'pending' ? 'Commencer le Traitement' : 'Voir Détails'}
                 </Button>
               )}
               <Button 
                 variant="secondary"
                 onClick={() => {
                   const invoice = createInvoiceForOrder(selectedOrder);
-                  alert(`New invoice ${invoice.reference} created for this order!`);
+                  alert(`Nouvelle facture ${invoice.reference} créée pour cette commande !`);
                 }}
               >
-                Create Invoice
+                Créer une Facture
               </Button>
               <Button variant="secondary" onClick={() => setShowOrderModal(false)}>
-                Close
+                Fermer
               </Button>
             </div>
           </div>
@@ -602,69 +626,51 @@ export const OrderManagement: React.FC = () => {
       <Modal
         isOpen={showCreateOrderModal}
         onClose={() => setShowCreateOrderModal(false)}
-        title="Create New Order"
+        title="Créer une Nouvelle Commande"
         size="xl"
       >
         <div className="space-y-6 max-h-96 overflow-y-auto">
           {/* Client Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Client Name"
-              value={orderForm.clientName}
-              onChange={(value) => setOrderForm(prev => ({ ...prev, clientName: value }))}
-              placeholder="Enter client name"
-              required
-            />
-            <Input
-              label="Phone Number"
-              value={orderForm.phoneNumber}
-              onChange={(value) => setOrderForm(prev => ({ ...prev, phoneNumber: value }))}
-              placeholder="Enter phone number"
-              required
-            />
+            label="Nom du Client"
+            value={orderForm.clientName}
+            onChange={(value) => setOrderForm(prev => ({ ...prev, clientName: value }))}
+            placeholder="Entrez le nom du client"
+            required
+          />
+          <Input
+            label="Numéro de Téléphone"
+            value={orderForm.phoneNumber}
+            onChange={(value) => setOrderForm(prev => ({ ...prev, phoneNumber: value }))}
+            placeholder="Entrez le numéro de téléphone"
+            required
+          />
           </div>
 
           {/* Ponge Items */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-white font-semibold">Ponge Items</h4>
+              <h4 className="text-white font-semibold">Articles Ponge</h4>
               <Button size="sm" onClick={addPongeItem} icon={Plus}>
-                Add Ponge
+                Ajouter un Ponge
               </Button>
             </div>
             <div className="space-y-3">
-              {orderForm.pongeItems.map((item, index) => (
+              {orderForm.pongeItems.map((item) => (
                 <div key={item.id} className="p-4 bg-slate-700 rounded-lg">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <Input
-                      label="Description"
-                      value={item.description}
-                      onChange={(value) => updatePongeItem(item.id, 'description', value)}
-                      placeholder="Ponge description"
-                    />
-                    <Input
-                      label="Quantity"
-                      type="number"
-                      value={item.quantity.toString()}
-                      onChange={(value) => updatePongeItem(item.id, 'quantity', parseInt(value) || 0)}
-                      min="1"
-                    />
-                    <Input
-                      label="Unit Price"
-                      type="number"
-                      step="0.01"
-                      value={item.unitPrice.toString()}
-                      onChange={(value) => updatePongeItem(item.id, 'unitPrice', parseFloat(value) || 0)}
-                      min="0"
-                    />
-                    <div className="flex items-end space-x-2">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-slate-300 mb-1">Total</label>
-                        <div className="px-3 py-2 bg-slate-600 border border-slate-500 rounded-lg text-white">
-                          ${item.total.toFixed(2)}
-                        </div>
-                      </div>
-                      {orderForm.pongeItems.length > 1 && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <Input
+                        label="Description"
+                        value={item.description}
+                        onChange={(value) => updatePongeItem(item.id, 'description', value)}
+                        placeholder="Description du Ponge"
+                        required
+                      />
+                    </div>
+                    {orderForm.pongeItems.length > 1 && (
+                      <div className="flex items-end">
                         <Button
                           size="sm"
                           variant="danger"
@@ -672,8 +678,8 @@ export const OrderManagement: React.FC = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -683,30 +689,30 @@ export const OrderManagement: React.FC = () => {
           {/* Reference Materials */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-white font-semibold">Reference Materials</h4>
+              <h4 className="text-white font-semibold">Matériaux de Référence</h4>
               <Button size="sm" onClick={addReferenceMaterial} icon={Plus}>
-                Add Material
+                Ajouter un Matériau
               </Button>
             </div>
             <div className="space-y-3">
-              {orderForm.referenceMaterials.map((material, index) => (
+              {orderForm.referenceMaterials.map((material) => (
                 <div key={material.id} className="p-4 bg-slate-700 rounded-lg">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Input
-                      label="Material Name"
+                      label="Nom du Matériau"
                       value={material.name}
                       onChange={(value) => updateReferenceMaterial(material.id, 'name', value)}
-                      placeholder="Material name"
+                      placeholder="Nom du matériau"
                     />
                     <Input
                       label="Description"
                       value={material.description}
                       onChange={(value) => updateReferenceMaterial(material.id, 'description', value)}
-                      placeholder="Material description"
+                      placeholder="Description du matériau"
                     />
                     <div className="flex items-end space-x-2">
                       <Input
-                        label="Quantity"
+                        label="Quantité"
                         type="number"
                         value={material.quantity.toString()}
                         onChange={(value) => updateReferenceMaterial(material.id, 'quantity', parseInt(value) || 0)}
@@ -730,16 +736,16 @@ export const OrderManagement: React.FC = () => {
 
           {/* Image Upload */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Upload Images</h4>
+            <h4 className="text-white font-semibold mb-4">Télécharger des Images</h4>
             <div className="space-y-4">
               <div className="flex items-center justify-center w-full">
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-600 border-dashed rounded-lg cursor-pointer bg-slate-700 hover:bg-slate-600">
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     <Upload className="w-8 h-8 mb-4 text-slate-400" />
                     <p className="mb-2 text-sm text-slate-400">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
+                      <span className="font-semibold">Cliquez pour télécharger</span> ou glisser-déposer
                     </p>
-                    <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
+                    <p className="text-xs text-slate-500">PNG, JPG, GIF jusqu'à 10MB</p>
                   </div>
                   <input
                     type="file"
@@ -778,15 +784,14 @@ export const OrderManagement: React.FC = () => {
           {/* Dates and Payment */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Start Date"
+              label="Date de Début (Optionnelle)"
               type="date"
               icon={Calendar}
               value={orderForm.startDate}
               onChange={(value) => setOrderForm(prev => ({ ...prev, startDate: value }))}
-              required
             />
             <Input
-              label="Finish Date"
+              label="Date de Fin"
               type="date"
               icon={Calendar}
               value={orderForm.finishDate}
@@ -795,9 +800,9 @@ export const OrderManagement: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
-              label="Down Payment"
+              label="Acompte"
               type="number"
               step="0.01"
               value={orderForm.downPayment.toString()}
@@ -806,7 +811,16 @@ export const OrderManagement: React.FC = () => {
               min="0"
             />
             <Input
-              label="Payment Months"
+              label="Avance (Premier Mois)"
+              type="number"
+              step="0.01"
+              value={orderForm.advanceMoney.toString()}
+              onChange={(value) => setOrderForm(prev => ({ ...prev, advanceMoney: parseFloat(value) || 0 }))}
+              placeholder="0.00"
+              min="0"
+            />
+            <Input
+              label="Mois de Paiement"
               type="number"
               value={orderForm.paymentMonths.toString()}
               onChange={(value) => setOrderForm(prev => ({ ...prev, paymentMonths: parseInt(value) || 1 }))}
@@ -817,29 +831,31 @@ export const OrderManagement: React.FC = () => {
 
           {/* Order Summary */}
           <div className="p-4 bg-slate-700 rounded-lg">
-            <h4 className="text-white font-semibold mb-2">Order Summary</h4>
+            <h4 className="text-white font-semibold mb-2">Récapitulatif des Paiements</h4>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-400">Total Amount:</span>
+                <span className="text-slate-400">Articles Ponge:</span>
                 <span className="text-white font-semibold">
-                  ${orderForm.pongeItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}
+                  {orderForm.pongeItems.length} article(s)
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Down Payment:</span>
-                <span className="text-white">${orderForm.downPayment.toFixed(2)}</span>
+                <span className="text-slate-400">Acompte:</span>
+                <span className="text-white">{orderForm.downPayment.toFixed(2)} DH</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Remaining:</span>
-                <span className="text-white">
-                  ${(orderForm.pongeItems.reduce((sum, item) => sum + item.total, 0) - orderForm.downPayment).toFixed(2)}
+                <span className="text-slate-400">Avance (1er Mois):</span>
+                <span className="text-white">{orderForm.advanceMoney.toFixed(2)} DH</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-600 pt-1">
+                <span className="text-slate-400">Total Payé Initialement:</span>
+                <span className="text-white font-semibold">
+                  {(orderForm.downPayment + orderForm.advanceMoney).toFixed(2)} DH
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Monthly Payment:</span>
-                <span className="text-white">
-                  ${((orderForm.pongeItems.reduce((sum, item) => sum + item.total, 0) - orderForm.downPayment) / orderForm.paymentMonths).toFixed(2)}
-                </span>
+                <span className="text-slate-400">Mois de Paiement:</span>
+                <span className="text-white">{orderForm.paymentMonths} mois</span>
               </div>
             </div>
           </div>
@@ -847,10 +863,10 @@ export const OrderManagement: React.FC = () => {
 
         <div className="flex space-x-3 pt-6 border-t border-slate-700">
           <Button onClick={handleCreateOrder}>
-            Create Order
+            Créer la Commande
           </Button>
           <Button variant="secondary" onClick={() => setShowCreateOrderModal(false)}>
-            Cancel
+            Annuler
           </Button>
         </div>
       </Modal>

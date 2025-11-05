@@ -25,44 +25,44 @@ export const UserManagement: React.FC = () => {
       user.id === userId ? { ...user, isBlocked: !user.isBlocked } : user
     ));
     const user = users.find(u => u.id === userId);
-    alert(`User ${user?.name} has been ${user?.isBlocked ? 'unblocked' : 'blocked'} successfully!`);
+    alert(`L'utilisateur ${user?.name} a été ${user?.isBlocked ? 'débloqué' : 'bloqué'} avec succès !`);
   };
 
   const handleDeleteUser = (userId: string) => {
-    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action ne peut pas être annulée.')) {
       setUsers(prev => prev.filter(user => user.id !== userId));
-      alert('User deleted successfully!');
+      alert('Utilisateur supprimé avec succès !');
     }
   };
 
-  const handleViewUser = (user: any) => {
+  const handleViewUser = (user: User) => {
     setSelectedUser(user);
     setShowUserModal(true);
   };
 
   const handlePromoteUser = (userId: string) => {
-    if (confirm('Are you sure you want to promote this user to admin?')) {
+    if (confirm('Êtes-vous sûr de vouloir promouvoir cet utilisateur en admin ?')) {
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, role: 'admin' } : user
       ));
-      alert('User promoted to admin successfully!');
+      alert('Utilisateur promu en admin avec succès !');
     }
   };
 
   const handleDemoteUser = (userId: string) => {
-    if (confirm('Are you sure you want to demote this admin to user?')) {
+    if (confirm('Êtes-vous sûr de vouloir rétrograder cet admin en utilisateur ?')) {
       setUsers(prev => prev.map(user => 
         user.id === userId ? { ...user, role: 'user' } : user
       ));
-      alert('Admin demoted to user successfully!');
+      alert('Admin rétrogradé en utilisateur avec succès !');
     }
   };
 
   const handleResetPassword = (userId: string) => {
     const user = users.find(u => u.id === userId);
-    if (confirm(`Are you sure you want to reset password for ${user?.name}?`)) {
+    if (confirm(`Êtes-vous sûr de vouloir réinitialiser le mot de passe pour ${user?.name} ?`)) {
       // In a real app, this would send a password reset email
-      alert(`Password reset email sent to ${user?.email}`);
+      alert(`Email de réinitialisation du mot de passe envoyé à ${user?.email}`);
     }
   };
 
@@ -78,8 +78,8 @@ export const UserManagement: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">User Management</h1>
-          <p className="text-slate-400">Manage user accounts and permissions</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Gestion des Utilisateurs</h1>
+          <p className="text-slate-400">Gérez les comptes utilisateurs et les permissions</p>
         </div>
       </div>
 
@@ -87,7 +87,7 @@ export const UserManagement: React.FC = () => {
       <Card>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Search users..."
+            placeholder="Rechercher des utilisateurs..."
             value={searchTerm}
             onChange={setSearchTerm}
             icon={Search}
@@ -98,14 +98,14 @@ export const UserManagement: React.FC = () => {
             onChange={(e) => setSelectedRole(e.target.value)}
             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Roles</option>
-            <option value="user">Users</option>
+            <option value="all">Tous les Rôles</option>
+            <option value="user">Utilisateurs</option>
             <option value="admin">Admins</option>
           </select>
 
           <div className="text-slate-300 flex items-center">
             <Users className="w-4 h-4 mr-2" />
-            {filteredUsers.length} users
+            {filteredUsers.length} utilisateurs
           </div>
         </div>
       </Card>
@@ -116,12 +116,12 @@ export const UserManagement: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left py-3 text-slate-300 font-medium">User</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Role</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Orders</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Total Spent</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Status</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Joined</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Utilisateur</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Rôle</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Commandes</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Total Dépensé</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Inscrit</th>
                 <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
               </tr>
             </thead>
@@ -163,7 +163,7 @@ export const UserManagement: React.FC = () => {
                           ? 'text-red-400 bg-red-400/10'
                           : 'text-green-400 bg-green-400/10'
                       }`}>
-                        {user.isBlocked ? 'Blocked' : 'Active'}
+                        {user.isBlocked ? 'Bloqué' : 'Actif'}
                       </span>
                     </td>
                     <td className="py-4 text-slate-300">
@@ -177,7 +177,7 @@ export const UserManagement: React.FC = () => {
                           icon={Eye}
                           onClick={() => handleViewUser(user)}
                         >
-                          View
+                          Voir
                         </Button>
                         {user.role === 'user' ? (
                           <Button
@@ -185,7 +185,7 @@ export const UserManagement: React.FC = () => {
                             variant="secondary"
                             onClick={() => handlePromoteUser(user.id)}
                           >
-                            Promote
+                            Promouvoir
                           </Button>
                         ) : (
                           <Button
@@ -193,7 +193,7 @@ export const UserManagement: React.FC = () => {
                             variant="secondary"
                             onClick={() => handleDemoteUser(user.id)}
                           >
-                            Demote
+                            Rétrograder
                           </Button>
                         )}
                         <Button
@@ -202,14 +202,14 @@ export const UserManagement: React.FC = () => {
                           icon={user.isBlocked ? ShieldOff : UserX}
                           onClick={() => handleToggleBlock(user.id)}
                         >
-                          {user.isBlocked ? 'Unblock' : 'Block'}
+                          {user.isBlocked ? 'Débloquer' : 'Bloquer'}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleResetPassword(user.id)}
                         >
-                          Reset Password
+                          Réinitialiser Mot de Passe
                         </Button>
                         <Button
                           size="sm"
@@ -217,7 +217,7 @@ export const UserManagement: React.FC = () => {
                           icon={Trash2}
                           onClick={() => handleDeleteUser(user.id)}
                         >
-                          Delete
+                          Supprimer
                         </Button>
                       </div>
                     </td>
@@ -233,7 +233,7 @@ export const UserManagement: React.FC = () => {
       <Modal
         isOpen={showUserModal}
         onClose={() => setShowUserModal(false)}
-        title="User Details"
+        title="Détails de l'Utilisateur"
         size="lg"
       >
         {selectedUser && (
@@ -259,42 +259,42 @@ export const UserManagement: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-white font-semibold mb-3">Contact Information</h4>
+                <h4 className="text-white font-semibold mb-3">Informations de Contact</h4>
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-slate-400">Email:</span>
                     <span className="text-white ml-2">{selectedUser.email}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Phone:</span>
-                    <span className="text-white ml-2">{selectedUser.phone || 'Not provided'}</span>
+                    <span className="text-slate-400">Téléphone:</span>
+                    <span className="text-white ml-2">{selectedUser.phone || 'Non fourni'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Address:</span>
-                    <span className="text-white ml-2">{selectedUser.address || 'Not provided'}</span>
+                    <span className="text-slate-400">Adresse:</span>
+                    <span className="text-white ml-2">{selectedUser.address || 'Non fournie'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Joined:</span>
+                    <span className="text-slate-400">Inscrit:</span>
                     <span className="text-white ml-2">{new Date(selectedUser.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="text-white font-semibold mb-3">Order Statistics</h4>
+                <h4 className="text-white font-semibold mb-3">Statistiques des Commandes</h4>
                 <div className="space-y-2 text-sm">
                   <div>
-                    <span className="text-slate-400">Total Orders:</span>
+                    <span className="text-slate-400">Total Commandes:</span>
                     <span className="text-white ml-2">{getUserOrders(selectedUser.id).length}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Total Spent:</span>
-                    <span className="text-white ml-2">${getTotalSpent(selectedUser.id).toFixed(2)}</span>
+                    <span className="text-slate-400">Total Dépensé:</span>
+                    <span className="text-white ml-2">{getTotalSpent(selectedUser.id).toFixed(2)} DH</span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Account Status:</span>
+                    <span className="text-slate-400">Statut du Compte:</span>
                     <span className={`ml-2 ${selectedUser.isBlocked ? 'text-red-400' : 'text-green-400'}`}>
-                      {selectedUser.isBlocked ? 'Blocked' : 'Active'}
+                      {selectedUser.isBlocked ? 'Bloqué' : 'Actif'}
                     </span>
                   </div>
                 </div>
@@ -302,12 +302,12 @@ export const UserManagement: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-white font-semibold mb-3">Recent Orders</h4>
+              <h4 className="text-white font-semibold mb-3">Commandes Récentes</h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {getUserOrders(selectedUser.id).slice(0, 5).map((order) => (
                   <div key={order.id} className="flex justify-between items-center p-2 bg-slate-700 rounded">
                     <div>
-                      <span className="text-white text-sm">Order #{order.id}</span>
+                      <span className="text-white text-sm">Commande #{order.id}</span>
                       <span className="text-slate-400 text-xs ml-2">
                         {new Date(order.createdAt).toLocaleDateString()}
                       </span>
@@ -325,7 +325,7 @@ export const UserManagement: React.FC = () => {
                   </div>
                 ))}
                 {getUserOrders(selectedUser.id).length === 0 && (
-                  <p className="text-slate-400 text-sm">No orders yet</p>
+                  <p className="text-slate-400 text-sm">Aucune commande pour le moment</p>
                 )}
               </div>
             </div>

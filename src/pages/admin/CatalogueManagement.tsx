@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { Plus, CreditCard as Edit, Trash2, Search, Package } from 'lucide-react';
 import { mockProducts, categories } from '../../data/mockData';
+import { Product } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Modal } from '../../components/common/Modal';
 
-export const ProductManagement: React.FC = () => {
+export const CatalogueManagement: React.FC = () => {
   const [products, setProducts] = useState(mockProducts);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showProductModal, setShowProductModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
@@ -28,7 +29,7 @@ export const ProductManagement: React.FC = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const handleOpenModal = (product?: any) => {
+  const handleOpenModal = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
       setProductForm({
@@ -57,7 +58,7 @@ export const ProductManagement: React.FC = () => {
 
   const handleSaveProduct = () => {
     if (!productForm.name || !productForm.price || !productForm.stock) {
-      alert('Please fill in all required fields (Name, Price, Stock)');
+      alert('Veuillez remplir tous les champs obligatoires (Nom, Prix, Stock)');
       return;
     }
 
@@ -76,19 +77,19 @@ export const ProductManagement: React.FC = () => {
 
     if (editingProduct) {
       setProducts(prev => prev.map(p => p.id === editingProduct.id ? productData : p));
-      alert('Product updated successfully!');
+      alert('Article mis à jour avec succès !');
     } else {
       setProducts(prev => [...prev, productData]);
-      alert('Product added successfully!');
+      alert('Article ajouté avec succès !');
     }
 
     setShowProductModal(false);
   };
 
   const handleDeleteProduct = (productId: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
       setProducts(prev => prev.filter(p => p.id !== productId));
-      alert('Product deleted successfully!');
+      alert('Article supprimé avec succès !');
     }
   };
 
@@ -112,19 +113,19 @@ export const ProductManagement: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Product Management</h1>
-          <p className="text-slate-400">Manage your product catalog</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Gestion du Catalogue</h1>
+          <p className="text-slate-400">Gérez votre catalogue de produits</p>
         </div>
         <Button icon={Plus} onClick={() => handleOpenModal()}>
-          Add Product
+          Ajouter un Article
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Filtres */}
       <Card>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Search products..."
+            placeholder="Rechercher des articles..."
             value={searchTerm}
             onChange={setSearchTerm}
             icon={Search}
@@ -144,22 +145,22 @@ export const ProductManagement: React.FC = () => {
 
           <div className="text-slate-300 flex items-center">
             <Package className="w-4 h-4 mr-2" />
-            {filteredProducts.length} products
+            {filteredProducts.length} articles
           </div>
         </div>
       </Card>
 
-      {/* Products Table */}
+      {/* Tableau des Articles */}
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left py-3 text-slate-300 font-medium">Product</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Category</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Price</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Article</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Catégorie</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Prix</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Stock</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Status</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
                 <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
               </tr>
             </thead>
@@ -180,7 +181,7 @@ export const ProductManagement: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-4 text-slate-300 capitalize">{product.category}</td>
-                  <td className="py-4 text-white font-semibold">${product.price.toFixed(2)}</td>
+                  <td className="py-4 text-white font-semibold">{product.price.toFixed(2)} DH</td>
                   <td className="py-4 text-slate-300">{product.stock}</td>
                   <td className="py-4">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -188,7 +189,7 @@ export const ProductManagement: React.FC = () => {
                         ? 'text-green-400 bg-green-400/10'
                         : 'text-red-400 bg-red-400/10'
                     }`}>
-                      {product.availability ? 'Available' : 'Out of Stock'}
+                      {product.availability ? 'Disponible' : 'Rupture de Stock'}
                     </span>
                   </td>
                   <td className="py-4 text-right">
@@ -198,7 +199,7 @@ export const ProductManagement: React.FC = () => {
                         variant={product.availability ? "secondary" : "primary"}
                         onClick={() => handleToggleAvailability(product.id)}
                       >
-                        {product.availability ? 'Disable' : 'Enable'}
+                        {product.availability ? 'Désactiver' : 'Activer'}
                       </Button>
                       <Button
                         size="sm"
@@ -206,7 +207,7 @@ export const ProductManagement: React.FC = () => {
                         icon={Edit}
                         onClick={() => handleOpenModal(product)}
                       >
-                        Edit
+                        Modifier
                       </Button>
                       <Button
                         size="sm"
@@ -214,7 +215,7 @@ export const ProductManagement: React.FC = () => {
                         icon={Trash2}
                         onClick={() => handleDeleteProduct(product.id)}
                       >
-                        Delete
+                        Supprimer
                       </Button>
                     </div>
                   </td>
@@ -225,19 +226,19 @@ export const ProductManagement: React.FC = () => {
         </div>
       </Card>
 
-      {/* Product Form Modal */}
+      {/* Modal Formulaire Article */}
       <Modal
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
-        title={editingProduct ? 'Edit Product' : 'Add New Product'}
+        title={editingProduct ? 'Modifier l\'Article' : 'Ajouter un Nouvel Article'}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="Product Name"
+            label="Nom de l'Article"
             value={productForm.name}
             onChange={(value) => setProductForm(prev => ({ ...prev, name: value }))}
-            placeholder="Enter product name"
+            placeholder="Entrez le nom de l'article"
             required
           />
 
@@ -248,7 +249,7 @@ export const ProductManagement: React.FC = () => {
             <textarea
               value={productForm.description}
               onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Enter product description"
+              placeholder="Entrez la description de l'article"
               rows={3}
               className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
             />
@@ -256,7 +257,7 @@ export const ProductManagement: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Price"
+              label="Prix"
               type="number"
               step="0.01"
               value={productForm.price}
@@ -267,7 +268,7 @@ export const ProductManagement: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Category
+                Catégorie
               </label>
               <select
                 value={productForm.category}
@@ -285,14 +286,14 @@ export const ProductManagement: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Sizes (comma-separated)"
+              label="Tailles (séparées par des virgules)"
               value={productForm.sizes}
               onChange={(value) => setProductForm(prev => ({ ...prev, sizes: value }))}
               placeholder="XS, S, M, L, XL"
             />
 
             <Input
-              label="Stock Quantity"
+              label="Quantité en Stock"
               type="number"
               value={productForm.stock}
               onChange={(value) => setProductForm(prev => ({ ...prev, stock: value }))}
@@ -302,18 +303,18 @@ export const ProductManagement: React.FC = () => {
           </div>
 
           <Input
-            label="Image URLs (comma-separated)"
+            label="URLs des Images (séparées par des virgules)"
             value={productForm.images}
             onChange={(value) => setProductForm(prev => ({ ...prev, images: value }))}
-            placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
+            placeholder="https://exemple.com/image1.jpg, https://exemple.com/image2.jpg"
           />
 
           <div className="flex space-x-3 pt-4">
             <Button onClick={handleSaveProduct}>
-              {editingProduct ? 'Update Product' : 'Add Product'}
+              {editingProduct ? 'Mettre à Jour' : 'Ajouter l\'Article'}
             </Button>
             <Button variant="secondary" onClick={() => setShowProductModal(false)}>
-              Cancel
+              Annuler
             </Button>
           </div>
         </div>
@@ -321,3 +322,4 @@ export const ProductManagement: React.FC = () => {
     </div>
   );
 };
+

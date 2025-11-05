@@ -141,7 +141,7 @@ export const InvoiceManagement: React.FC = () => {
     }));
   };
 
-  const updateInvoiceItem = (id: string, field: keyof InvoiceItem, value: any) => {
+  const updateInvoiceItem = (id: string, field: keyof InvoiceItem, value: string | number) => {
     setInvoiceForm(prev => ({
       ...prev,
       items: prev.items.map(item => {
@@ -159,7 +159,7 @@ export const InvoiceManagement: React.FC = () => {
 
   const handleCreateInvoice = () => {
     if (!invoiceForm.clientName || invoiceForm.items.some(item => !item.description || item.quantity <= 0 || item.unitPrice <= 0)) {
-      alert('Please fill in all required fields and ensure all items have valid quantities and prices.');
+      alert('Veuillez remplir tous les champs obligatoires et vous assurer que tous les articles ont des quantités et des prix valides.');
       return;
     }
 
@@ -206,7 +206,7 @@ export const InvoiceManagement: React.FC = () => {
       setPayments(prev => [...prev, newPayment]);
     }
 
-    alert(`Invoice ${newInvoice.reference} created successfully!`);
+    alert(`Facture ${newInvoice.reference} créée avec succès !`);
     setShowCreateInvoiceModal(false);
     resetInvoiceForm();
   };
@@ -280,12 +280,12 @@ export const InvoiceManagement: React.FC = () => {
             : inv
         ));
       }
-      alert('Payment deleted successfully!');
-    alert(`Payment of $${paymentForm.amount} added successfully!`);
+      alert('Paiement supprimé avec succès !');
+    alert(`Paiement de ${paymentForm.amount} DH ajouté avec succès !`);
     }
   };
 
-  const handleDuplicateInvoice = (invoice: any) => {
+  const handleDuplicateInvoice = (invoice: Invoice) => {
     const duplicatedInvoice = {
       ...invoice,
       id: Date.now().toString(),
@@ -303,21 +303,21 @@ export const InvoiceManagement: React.FC = () => {
   };
 
   const handleDeleteInvoice = (invoiceId: string) => {
-    if (confirm('Are you sure you want to delete this invoice? This will also delete all associated payments.')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette facture ? Cela supprimera également tous les paiements associés.')) {
       setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
       setPayments(prev => prev.filter(payment => payment.invoiceId !== invoiceId));
-      alert('Invoice deleted successfully!');
+      alert('Facture supprimée avec succès !');
     }
   };
 
-  const handleSendInvoice = (invoice: any) => {
+  const handleSendInvoice = (invoice: Invoice) => {
     // In a real app, this would send the invoice via email
-    alert(`Invoice ${invoice.reference} sent to ${invoice.clientName} successfully!`);
+    alert(`Facture ${invoice.reference} envoyée à ${invoice.clientName} avec succès !`);
   };
 
-  const handleDownloadPDF = (invoice: any) => {
+  const handleDownloadPDF = (invoice: Invoice) => {
     // In a real app, this would generate and download a PDF
-    alert(`PDF for invoice ${invoice.reference} is being generated...`);
+    alert(`Le PDF de la facture ${invoice.reference} est en cours de génération...`);
   };
 
   const resetInvoiceForm = () => {
@@ -360,11 +360,11 @@ export const InvoiceManagement: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Invoice Management</h1>
-          <p className="text-slate-400">Create and manage invoices with payment tracking</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Gestion des Factures</h1>
+          <p className="text-slate-400">Créez et gérez les factures avec suivi des paiements</p>
         </div>
         <Button icon={Plus} onClick={() => setShowCreateInvoiceModal(true)}>
-          Create Invoice
+          Créer une Facture
         </Button>
       </div>
 
@@ -373,31 +373,31 @@ export const InvoiceManagement: React.FC = () => {
         <Card className="text-center">
           <FileText className="w-8 h-8 text-blue-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">{invoices.length}</p>
-          <p className="text-slate-400">Total Invoices</p>
+          <p className="text-slate-400">Total Factures</p>
         </Card>
 
         <Card className="text-center">
           <DollarSign className="w-8 h-8 text-green-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">
-            ${invoices.reduce((sum, inv) => sum + inv.total, 0).toFixed(2)}
+            {invoices.reduce((sum, inv) => sum + inv.total, 0).toFixed(2)} DH
           </p>
-          <p className="text-slate-400">Total Amount</p>
+          <p className="text-slate-400">Montant Total</p>
         </Card>
 
         <Card className="text-center">
           <CreditCard className="w-8 h-8 text-blue-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">
-            ${invoices.reduce((sum, inv) => sum + inv.amountPaid, 0).toFixed(2)}
+            {invoices.reduce((sum, inv) => sum + inv.amountPaid, 0).toFixed(2)} DH
           </p>
-          <p className="text-slate-400">Amount Paid</p>
+          <p className="text-slate-400">Montant Payé</p>
         </Card>
 
         <Card className="text-center">
           <Calendar className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-2xl font-bold text-white">
-            ${invoices.reduce((sum, inv) => sum + inv.amountDue, 0).toFixed(2)}
+            {invoices.reduce((sum, inv) => sum + inv.amountDue, 0).toFixed(2)} DH
           </p>
-          <p className="text-slate-400">Amount Due</p>
+          <p className="text-slate-400">Montant Dû</p>
         </Card>
       </div>
 
@@ -405,7 +405,7 @@ export const InvoiceManagement: React.FC = () => {
       <Card>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Search invoices..."
+            placeholder="Rechercher des factures..."
             value={searchTerm}
             onChange={setSearchTerm}
             icon={Search}
@@ -416,15 +416,15 @@ export const InvoiceManagement: React.FC = () => {
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">All Status</option>
-            <option value="paid">Paid</option>
-            <option value="partial">Partial</option>
-            <option value="unpaid">Unpaid</option>
+            <option value="all">Tous les Statuts</option>
+            <option value="paid">Payée</option>
+            <option value="partial">Partielle</option>
+            <option value="unpaid">Non Payée</option>
           </select>
 
           <div className="text-slate-300 flex items-center">
             <Filter className="w-4 h-4 mr-2" />
-            {filteredInvoices.length} invoices
+            {filteredInvoices.length} factures
           </div>
         </div>
       </Card>
@@ -435,13 +435,13 @@ export const InvoiceManagement: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left py-3 text-slate-300 font-medium">Reference</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Référence</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Client</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Date</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Total</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Paid</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Due</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Status</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Payé</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Dû</th>
+                <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
                 <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
               </tr>
             </thead>
@@ -472,7 +472,7 @@ export const InvoiceManagement: React.FC = () => {
                           setShowInvoiceModal(true);
                         }}
                       >
-                        View
+                        Voir
                       </Button>
                       <Button
                         size="sm"
@@ -487,14 +487,14 @@ export const InvoiceManagement: React.FC = () => {
                         variant="ghost"
                         onClick={() => handleSendInvoice(invoice)}
                       >
-                        Send
+                        Envoyer
                       </Button>
                       <Button
                         size="sm"
                         variant="secondary"
                         onClick={() => handleDuplicateInvoice(invoice)}
                       >
-                        Duplicate
+                        Dupliquer
                       </Button>
                       {invoice.status !== 'paid' && (
                         <Button
@@ -510,7 +510,7 @@ export const InvoiceManagement: React.FC = () => {
                             setShowPaymentModal(true);
                           }}
                         >
-                          Pay
+                          Payer
                         </Button>
                       )}
                       <Button
@@ -518,7 +518,7 @@ export const InvoiceManagement: React.FC = () => {
                         variant="danger"
                         onClick={() => handleDeleteInvoice(invoice.id)}
                       >
-                        Delete
+                        Supprimer
                       </Button>
                     </div>
                   </td>

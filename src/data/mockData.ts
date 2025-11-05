@@ -177,9 +177,9 @@ export const mockContactMessages: ContactMessage[] = [
 ];
 
 export const categories = [
-  { id: 'all', name: 'All Products' },
-  { id: 'fabrics', name: 'Fabrics' },
-  { id: 'clothes', name: 'Clothes' },
-  { id: 'kits', name: 'Sewing Kits' },
-  { id: 'threads', name: 'Threads' },
+  { id: 'all', name: 'Tous les Articles' },
+  { id: 'fabrics', name: 'Tissus' },
+  { id: 'clothes', name: 'Vêtements' },
+  { id: 'kits', name: 'Kits de Couture' },
+  { id: 'threads', name: 'Fils' },
 ];

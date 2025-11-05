@@ -10,7 +10,7 @@ interface ButtonProps {
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
   className?: string;
-  as?: any; // For Link component
+  as?: React.ElementType; // For Link component or other elements
   to?: string; // For Link component
 }
 

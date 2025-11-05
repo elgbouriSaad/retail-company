@@ -24,20 +24,20 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
 
   const userNavItems = [
-    { path: '/dashboard', icon: Home, label: 'Dashboard' },
-    { path: '/shop', icon: ShoppingBag, label: 'Shop' },
-    { path: '/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/dashboard', icon: Home, label: 'Tableau de Bord' },
+    { path: '/shop', icon: ShoppingBag, label: 'Boutique' },
+    { path: '/orders', icon: ShoppingCart, label: 'Commandes' },
     { path: '/contact', icon: Phone, label: 'Contact' },
-    { path: '/profile', icon: User, label: 'Profile' },
+    { path: '/profile', icon: User, label: 'Profil' },
   ];
 
   const adminNavItems = [
-    { path: '/admin/dashboard', icon: BarChart3, label: 'Dashboard' },
-    { path: '/admin/products', icon: Package, label: 'Products' },
-    { path: '/admin/users', icon: Users, label: 'Users' },
-    { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
-    { path: '/admin/invoices', icon: FileText, label: 'Invoices' },
-    { path: '/admin/settings', icon: Settings, label: 'Settings' },
+    { path: '/admin/dashboard', icon: BarChart3, label: 'Tableau de Bord' },
+    { path: '/admin/catalogue', icon: Package, label: 'Catalogue' },
+    { path: '/admin/users', icon: Users, label: 'Utilisateurs' },
+    { path: '/admin/orders', icon: ShoppingCart, label: 'Commandes' },
+    { path: '/admin/invoices', icon: FileText, label: 'Factures' },
+    { path: '/admin/settings', icon: Settings, label: 'Paramètres' },
   ];
 
   const navItems = user?.role === 'admin' ? adminNavItems : userNavItems;
@@ -95,7 +95,7 @@ export const Navbar: React.FC = () => {
             onClick={logout}
             className="w-full justify-start"
           >
-            Logout
+            Déconnexion
           </Button>
         </div>
       </div>

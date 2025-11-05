@@ -65,15 +65,13 @@ export interface OrderForm {
   startDate: string;
   finishDate: string;
   downPayment: number;
+  advanceMoney: number;
   paymentMonths: number;
 }
 
 export interface PongeItem {
   id: string;
   description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
 }
 
 export interface ReferenceMaterial {
