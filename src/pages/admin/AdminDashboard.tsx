@@ -84,7 +84,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="text-center bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <DollarSign className="w-8 h-8 text-green-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">${totalRevenue.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-white">{totalRevenue.toFixed(2)} DH</p>
           <p className="text-slate-400">Revenu Total</p>
           <div className="mt-2 text-xs">
             <span className="text-green-400">↗ +12.5%</span>
@@ -94,7 +94,7 @@ export const AdminDashboard: React.FC = () => {
 
         <Card className="text-center bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">${completedRevenue.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-white">{completedRevenue.toFixed(2)} DH</p>
           <p className="text-slate-400">Revenu Complété</p>
           <div className="mt-2 text-xs">
             <span className="text-blue-400">{deliveredOrders} commandes</span>
@@ -103,7 +103,7 @@ export const AdminDashboard: React.FC = () => {
 
         <Card className="text-center bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
           <Clock className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">${pendingRevenue.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-white">{pendingRevenue.toFixed(2)} DH</p>
           <p className="text-slate-400">Revenu en Attente</p>
           <div className="mt-2 text-xs">
             <span className="text-yellow-400">{pendingOrders} commandes</span>
@@ -112,11 +112,11 @@ export const AdminDashboard: React.FC = () => {
 
         <Card className="text-center bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
           <BarChart3 className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">${(totalRevenue / totalOrders).toFixed(2)}</p>
-          <p className="text-slate-400">Avg Order Value</p>
+          <p className="text-2xl font-bold text-white">{(totalRevenue / totalOrders).toFixed(2)} DH</p>
+          <p className="text-slate-400">Valeur Moyenne</p>
           <div className="mt-2 text-xs">
             <span className="text-purple-400">↗ +8.2%</span>
-            <span className="text-slate-500 ml-1">vs last month</span>
+            <span className="text-slate-500 ml-1">vs mois dernier</span>
           </div>
         </Card>
       </div>
@@ -176,8 +176,8 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-right w-24">
-                    <span className="text-white font-semibold">${month.revenue.toFixed(0)}</span>
-                    <div className="text-xs text-slate-400">{month.orders} orders</div>
+                    <span className="text-white font-semibold">{month.revenue.toFixed(0)} DH</span>
+                    <div className="text-xs text-slate-400">{month.orders} commandes</div>
                   </div>
                 </div>
               );
@@ -197,8 +197,8 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
-                    <div className="text-white font-semibold">{item.count} orders</div>
-                    <div className="text-slate-400 text-sm">${item.revenue.toFixed(2)}</div>
+                    <div className="text-white font-semibold">{item.count} commandes</div>
+                    <div className="text-slate-400 text-sm">{item.revenue.toFixed(2)} DH</div>
                   </div>
                   <div className="w-24 bg-slate-700 rounded-full h-2">
                     <div
@@ -221,7 +221,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <div className="flex-1">
                   <p className="text-white text-sm">
-                    Order #{order.id} - ${order.totalAmount.toFixed(2)}
+                    Commande #{order.id} - {order.totalAmount.toFixed(2)} DH
                   </p>
                   <p className="text-slate-400 text-xs">
                     {new Date(order.createdAt).toLocaleString()}
@@ -422,11 +422,11 @@ export const AdminDashboard: React.FC = () => {
               <div key={order.id} className="p-4 bg-slate-700 rounded-lg">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h4 className="text-white font-semibold">Order #{order.id}</h4>
+                    <h4 className="text-white font-semibold">Commande #{order.id}</h4>
                     <p className="text-slate-400 text-sm">{user?.name} - {user?.email}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-white font-semibold">${order.totalAmount.toFixed(2)}</p>
+                    <p className="text-white font-semibold">{order.totalAmount.toFixed(2)} DH</p>
                     <p className="text-slate-400 text-sm">
                       {new Date(order.createdAt).toLocaleDateString()}
                     </p>
@@ -489,13 +489,13 @@ export const AdminDashboard: React.FC = () => {
                     <span className="text-slate-400 font-mono">#{index + 1}</span>
                     <div>
                       <p className="text-white font-medium">{product.name}</p>
-                      <p className="text-slate-400 text-sm">${product.price.toFixed(2)}</p>
+                      <p className="text-slate-400 text-sm">{product.price.toFixed(2)} DH</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-white font-semibold">{Math.floor(Math.random() * 50) + 10} sold</p>
+                    <p className="text-white font-semibold">{Math.floor(Math.random() * 50) + 10} vendus</p>
                     <p className="text-green-400 text-sm">
-                      ${((Math.floor(Math.random() * 50) + 10) * product.price).toFixed(2)}
+                      {((Math.floor(Math.random() * 50) + 10) * product.price).toFixed(2)} DH
                     </p>
                   </div>
                 </div>

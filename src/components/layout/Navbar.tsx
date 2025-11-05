@@ -35,8 +35,7 @@ export const Navbar: React.FC = () => {
     { path: '/admin/dashboard', icon: BarChart3, label: 'Tableau de Bord' },
     { path: '/admin/catalogue', icon: Package, label: 'Catalogue' },
     { path: '/admin/users', icon: Users, label: 'Utilisateurs' },
-    { path: '/admin/orders', icon: ShoppingCart, label: 'Commandes' },
-    { path: '/admin/invoices', icon: FileText, label: 'Factures' },
+    { path: '/admin/orders', icon: ShoppingCart, label: 'Commandes & Paiements' },
     { path: '/admin/settings', icon: Settings, label: 'Paramètres' },
   ];
 

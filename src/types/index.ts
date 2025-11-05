@@ -23,6 +23,17 @@ export interface Product {
   createdAt: string;
 }
 
+export interface PaymentInstallment {
+  id: string;
+  dueDate: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'overdue';
+  paidDate?: string;
+  paidAmount?: number;
+  method?: 'cash' | 'card' | 'check' | 'transfer' | 'mobile';
+  notes?: string;
+}
+
 export interface Order {
   id: string;
   userId: string;
@@ -31,6 +42,18 @@ export interface Order {
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
+  clientName?: string;
+  phoneNumber?: string;
+  pongeItems?: PongeItem[];
+  referenceMaterials?: ReferenceMaterial[];
+  startDate?: string;
+  finishDate?: string;
+  downPayment?: number;
+  advanceMoney?: number;
+  paymentMonths?: number;
+  images?: string[];
+  invoiceReference?: string;
+  paymentSchedule?: PaymentInstallment[];
 }
 
 export interface OrderItem {

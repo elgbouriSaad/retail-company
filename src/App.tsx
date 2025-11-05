@@ -14,8 +14,7 @@ import { ProfilePage } from './pages/user/ProfilePage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { CatalogueManagement } from './pages/admin/CatalogueManagement';
 import { UserManagement } from './pages/admin/UserManagement';
-import { OrderManagement } from './pages/admin/OrderManagement';
-import { InvoiceManagement } from './pages/admin/InvoiceManagement';
+import { OrderPaymentManagement } from './pages/admin/OrderPaymentManagement';
 import { Settings } from './pages/admin/Settings';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -98,15 +97,7 @@ function App() {
             <Route path="/admin/orders" element={
               <AuthGuard requiredRole="admin">
                 <Layout>
-                  <OrderManagement />
-                </Layout>
-              </AuthGuard>
-            } />
-
-            <Route path="/admin/invoices" element={
-              <AuthGuard requiredRole="admin">
-                <Layout>
-                  <InvoiceManagement />
+                  <OrderPaymentManagement />
                 </Layout>
               </AuthGuard>
             } />

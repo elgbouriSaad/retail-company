@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Search, UserCheck, UserX, Eye, Trash2, Shield, ShieldOff } from 'lucide-react';
 import { mockUsers, mockOrders } from '../../data/mockData';
+import { User } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -11,7 +12,7 @@ export const UserManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,7 +157,7 @@ export const UserManagement: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-4 text-slate-300">{userOrders.length}</td>
-                    <td className="py-4 text-white font-semibold">${totalSpent.toFixed(2)}</td>
+                    <td className="py-4 text-white font-semibold">{totalSpent.toFixed(2)} DH</td>
                     <td className="py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         user.isBlocked
@@ -313,7 +314,7 @@ export const UserManagement: React.FC = () => {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-white font-semibold">${order.totalAmount.toFixed(2)}</span>
+                      <span className="text-white font-semibold">{order.totalAmount.toFixed(2)} DH</span>
                       <span className={`block text-xs ${
                         order.status === 'delivered' ? 'text-green-400' :
                         order.status === 'in-progress' ? 'text-blue-400' :
