@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Package, Search, Filter, Truck, CheckCircle, Clock, X, Plus, Upload, 
   Trash2, Calendar, ChevronDown, ChevronUp, DollarSign, AlertTriangle, CreditCard,
-  Phone, Scissors
+  Phone, Scissors, RefreshCw, Loader2
 } from 'lucide-react';
-import { mockOrders, mockUsers } from '../../data/mockData';
 import { OrderForm, PongeItem, ReferenceMaterial, Order, PaymentInstallment } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -19,9 +18,17 @@ import {
   calculateDaysOverdue,
   recordPayment
 } from '../../utils/paymentUtils';
+import {
+  fetchCustomOrders,
+  createCustomOrder,
+  updateCustomOrderStatus,
+  deleteCustomOrder,
+  updateCustomOrderSchedule,
+} from '../../utils/customOrderService';
+import { validateImageFiles } from '../../utils/uploadService';
 
 export const OrderPaymentManagement: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
@@ -51,24 +58,66 @@ export const OrderPaymentManagement: React.FC = () => {
   });
   
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
-  // Update overdue statuses on mount and when orders change
-  useEffect(() => {
-    setOrders(prev => prev.map(order => {
-      if (order.paymentSchedule) {
-        const updatedSchedule = updateInstallmentStatuses(order.paymentSchedule);
-        return { ...order, paymentSchedule: updatedSchedule };
-      }
+  const normalizeOrder = useCallback((order: Order): Order => {
+    if (!order.paymentSchedule || order.paymentSchedule.length === 0) {
       return order;
-    }));
+    }
+
+    const updatedSchedule = updateInstallmentStatuses(order.paymentSchedule);
+    return { ...order, paymentSchedule: updatedSchedule };
   }, []);
 
+  const loadOrders = useCallback(
+    async (usePageLoader: boolean = false) => {
+      try {
+        if (usePageLoader) {
+          setIsLoadingOrders(true);
+        } else {
+          setIsRefreshingOrders(true);
+        }
+        setLoadingError(null);
+        const fetched = await fetchCustomOrders();
+        setOrders(fetched.map(normalizeOrder));
+      } catch (error) {
+        console.error('Error fetching custom orders:', error);
+        setLoadingError(
+          'Impossible de charger les commandes depuis Supabase. Vérifiez votre connexion et réessayez.'
+        );
+      } finally {
+        if (usePageLoader) {
+          setIsLoadingOrders(false);
+        } else {
+          setIsRefreshingOrders(false);
+        }
+      }
+    },
+    [normalizeOrder]
+  );
+
+  useEffect(() => {
+    loadOrders(true);
+  }, [loadOrders]);
+
   const filteredOrders = orders.filter(order => {
-    const user = mockUsers.find(u => u.id === order.userId);
-    const matchesSearch = order.id.includes(searchTerm) ||
-                         order.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.products.some(p => p.productName.toLowerCase().includes(searchTerm.toLowerCase()));
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      order.id.toLowerCase().includes(normalizedSearch) ||
+      (order.clientName || '').toLowerCase().includes(normalizedSearch) ||
+      (order.phoneNumber || '').toLowerCase().includes(normalizedSearch) ||
+      (order.invoiceReference || '').toLowerCase().includes(normalizedSearch) ||
+      (order.pongeItems || []).some(item =>
+        (item.description || '').toLowerCase().includes(normalizedSearch)
+      );
+
     const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
     return matchesSearch && matchesStatus;
   });
@@ -80,22 +129,37 @@ export const OrderPaymentManagement: React.FC = () => {
     return overdueInst.length > 0;
   });
 
-  const handleStatusUpdate = (orderId: string, newStatus: Order['status']) => {
-    setOrders(prev => prev.map(order => 
-      order.id === orderId 
-        ? { ...order, status: newStatus, updatedAt: new Date().toISOString() }
-        : order
-    ));
+  const handleStatusUpdate = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      setStatusUpdatingOrderId(orderId);
+      const updatedOrder = await updateCustomOrderStatus(orderId, newStatus);
+      setOrders(prev =>
+        prev.map(order =>
+          order.id === orderId ? normalizeOrder(updatedOrder) : order
+        )
+      );
+      return true;
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Une erreur est survenue lors de la mise à jour du statut. Veuillez réessayer.');
+      return false;
+    } finally {
+      setStatusUpdatingOrderId(null);
+    }
   };
 
-  const handleStartProcessing = (orderId: string) => {
-    if (confirm('Confirmer le démarrage du traitement de cette commande ?')) {
-      handleStatusUpdate(orderId, 'in-progress');
+  const handleStartProcessing = async (orderId: string) => {
+    if (!confirm('Confirmer le démarrage du traitement de cette commande ?')) {
+      return;
+    }
+
+    const success = await handleStatusUpdate(orderId, 'in-progress');
+    if (success) {
       alert('✓ Commande mise en cours de traitement.');
     }
   };
 
-  const handleMarkDelivered = (orderId: string) => {
+  const handleMarkDelivered = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -117,12 +181,14 @@ export const OrderPaymentManagement: React.FC = () => {
     }
     
     if (confirm(confirmMsg)) {
-      handleStatusUpdate(orderId, 'delivered');
-      alert('✓ Commande marquée comme livrée.');
+      const success = await handleStatusUpdate(orderId, 'delivered');
+      if (success) {
+        alert('✓ Commande marquée comme livrée.');
+      }
     }
   };
 
-  const handleDeleteOrder = (orderId: string) => {
+  const handleDeleteOrder = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -140,9 +206,20 @@ export const OrderPaymentManagement: React.FC = () => {
     
     confirmMsg += '\n❌ Cette action ne peut pas être annulée.';
     
-    if (confirm(confirmMsg)) {
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      setDeletingOrderId(orderId);
+      await deleteCustomOrder(orderId);
       setOrders(prev => prev.filter(order => order.id !== orderId));
       alert('✓ Commande supprimée avec succès.');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      alert('Impossible de supprimer la commande. Vérifiez Supabase et réessayez.');
+    } finally {
+      setDeletingOrderId(null);
     }
   };
 
@@ -249,21 +326,28 @@ export const OrderPaymentManagement: React.FC = () => {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      setOrderForm(prev => ({
-        ...prev,
-        images: [...prev.images, ...fileArray],
-      }));
+    if (!files) return;
 
-      fileArray.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setUploadedImages(prev => [...prev, e.target?.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
+    const fileArray = Array.from(files);
+    const validation = validateImageFiles(fileArray);
+
+    if (!validation.valid) {
+      alert(`Erreur lors de l'import des images :\n${validation.errors.join('\n')}`);
+      return;
     }
+
+    setOrderForm(prev => ({
+      ...prev,
+      images: [...prev.images, ...fileArray],
+    }));
+
+    fileArray.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImages(prev => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const removeImage = (index: number) => {
@@ -274,7 +358,7 @@ export const OrderPaymentManagement: React.FC = () => {
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     // Validation 1: Required fields
     if (!orderForm.clientName || !orderForm.phoneNumber) {
       alert('⚠️ Erreur: Veuillez entrer le nom du client et le numéro de téléphone.');
@@ -350,79 +434,69 @@ export const OrderPaymentManagement: React.FC = () => {
       orderForm.paymentMonths
     );
     
-    const newOrder: Order = {
-      id: Date.now().toString(),
-      userId: 'admin-created',
-      products: orderForm.pongeItems.map(item => ({
-        productId: item.id,
-        productName: item.description,
-        quantity: 1,
-        size: 'Ponge',
-        price: 0,
-      })),
-      status: orderStatus,
-      totalAmount: totalAmount,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      clientName: orderForm.clientName,
-      phoneNumber: orderForm.phoneNumber,
-      pongeItems: orderForm.pongeItems,
-      referenceMaterials: orderForm.referenceMaterials,
-      startDate: orderForm.startDate,
-      finishDate: orderForm.finishDate,
-      downPayment: orderForm.downPayment,
-      advanceMoney: orderForm.advanceMoney,
-      paymentMonths: orderForm.paymentMonths,
-      images: uploadedImages,
-      invoiceReference: `INV-${Date.now()}`,
-      paymentSchedule: paymentSchedule,
-    };
+    try {
+      setIsSubmittingOrder(true);
 
-    setOrders(prev => [...prev, newOrder]);
-    
-    // Success message with detailed summary
-    const scheduleCount = paymentSchedule.length;
-    let summaryMsg = `✓ Commande créée avec succès !\n\n`;
-    summaryMsg += `📋 RÉSUMÉ DE LA COMMANDE\n`;
-    summaryMsg += `${'='.repeat(30)}\n\n`;
-    summaryMsg += `👤 Client: ${orderForm.clientName}\n`;
-    summaryMsg += `📱 Téléphone: ${orderForm.phoneNumber}\n`;
-    summaryMsg += `📦 Articles Ponge: ${orderForm.pongeItems.length}\n`;
-    summaryMsg += `💰 Montant Total (Acompte): ${totalAmount.toFixed(2)} DH\n`;
-    if (orderForm.advanceMoney > 0) {
-      summaryMsg += `✓ Avance payée (1er mois): ${orderForm.advanceMoney.toFixed(2)} DH\n`;
-      summaryMsg += `📉 Restant à payer: ${(totalAmount - orderForm.advanceMoney).toFixed(2)} DH\n`;
-      summaryMsg += `💳 Mensualités suivantes: ${((totalAmount - orderForm.advanceMoney) / (orderForm.paymentMonths - 1)).toFixed(2)} DH × ${orderForm.paymentMonths - 1} mois\n`;
-    } else {
-      summaryMsg += `📉 À payer: ${totalAmount.toFixed(2)} DH\n`;
+      const createdOrder = await createCustomOrder({
+        ...orderForm,
+        paymentSchedule,
+        status: orderStatus,
+      totalAmount,
+      });
+
+      setOrders(prev => [normalizeOrder(createdOrder), ...prev]);
+      
+      const scheduleCount = paymentSchedule.length;
+      let summaryMsg = `✓ Commande créée avec succès !\n\n`;
+      summaryMsg += `📋 RÉSUMÉ DE LA COMMANDE\n`;
+      summaryMsg += `${'='.repeat(30)}\n\n`;
+      summaryMsg += `👤 Client: ${orderForm.clientName}\n`;
+      summaryMsg += `📱 Téléphone: ${orderForm.phoneNumber}\n`;
+      summaryMsg += `📦 Articles Ponge: ${orderForm.pongeItems.length}\n`;
+      summaryMsg += `💰 Montant Total (Acompte): ${totalAmount.toFixed(2)} DH\n`;
+      if (orderForm.advanceMoney > 0) {
+        const remainingMonths = Math.max(orderForm.paymentMonths - 1, 1);
+        const monthlyValue = remainingMonths > 0
+          ? (totalAmount - orderForm.advanceMoney) / remainingMonths
+          : 0;
+        summaryMsg += `✓ Avance payée (1er mois): ${orderForm.advanceMoney.toFixed(2)} DH\n`;
+        summaryMsg += `📉 Restant à payer: ${(totalAmount - orderForm.advanceMoney).toFixed(2)} DH\n`;
+        summaryMsg += `💳 Mensualités suivantes: ${monthlyValue.toFixed(2)} DH × ${remainingMonths} mois\n`;
+      } else {
+        summaryMsg += `📉 À payer: ${totalAmount.toFixed(2)} DH\n`;
+      }
+      summaryMsg += `📅 Total Échéances: ${scheduleCount} paiement${scheduleCount > 1 ? 's' : ''}\n`;
+      summaryMsg += `📌 Statut: ${orderStatus === 'in-progress' ? 'En Cours' : 'En Attente'}\n`;
+      if (orderForm.startDate) {
+        summaryMsg += `🗓️ Date de début: ${new Date(orderForm.startDate).toLocaleDateString('fr-FR')}`;
+      }
+      
+      alert(summaryMsg);
+      
+      setShowCreateOrderModal(false);
+      
+      setOrderForm({
+        clientName: '',
+        phoneNumber: '',
+        pongeItems: [{ id: '1', description: '' }],
+        referenceMaterials: [{ id: '1', name: '', description: '', quantity: 1 }],
+        images: [],
+        startDate: '',
+        finishDate: '',
+        downPayment: 0,
+        advanceMoney: 0,
+        paymentMonths: 1,
+      });
+      setUploadedImages([]);
+    } catch (error) {
+      console.error('Error creating custom order:', error);
+      alert('Impossible de créer la commande sur Supabase. Vérifiez les logs et réessayez.');
+    } finally {
+      setIsSubmittingOrder(false);
     }
-    summaryMsg += `📅 Total Échéances: ${scheduleCount} paiement${scheduleCount > 1 ? 's' : ''}\n`;
-    summaryMsg += `📌 Statut: ${orderStatus === 'in-progress' ? 'En Cours' : 'En Attente'}\n`;
-    if (orderForm.startDate) {
-      summaryMsg += `🗓️ Date de début: ${new Date(orderForm.startDate).toLocaleDateString('fr-FR')}`;
-    }
-    
-    alert(summaryMsg);
-    
-    setShowCreateOrderModal(false);
-    
-    // Reset form
-    setOrderForm({
-      clientName: '',
-      phoneNumber: '',
-      pongeItems: [{ id: '1', description: '' }],
-      referenceMaterials: [{ id: '1', name: '', description: '', quantity: 1 }],
-      images: [],
-      startDate: '',
-      finishDate: '',
-      downPayment: 0,
-      advanceMoney: 0,
-      paymentMonths: 1,
-    });
-    setUploadedImages([]);
   };
 
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
     if (!selectedOrderForPayment || !selectedInstallment) return;
     
     // Validation 1: Check for valid amount
@@ -474,87 +548,78 @@ export const OrderPaymentManagement: React.FC = () => {
       return;
     }
 
-    // Track if status will change to delivered
-    let willBeDelivered = false;
+    try {
+      setIsRecordingPayment(true);
 
-    setOrders(prev => prev.map(order => {
-      if (order.id === selectedOrderForPayment.id && order.paymentSchedule) {
-        const updatedSchedule = recordPayment(
-          order.paymentSchedule,
-          selectedInstallment.id,
-          paymentForm.amount,
-          paymentForm.method,
-          paymentForm.date,
-          paymentForm.notes
-        );
-        
-        // Check if all installments are now paid
-        const allPaid = updatedSchedule.every(inst => inst.status === 'paid');
-        
-        // Calculate if total amount is fully paid
-        const totalPaidFromSchedule = calculateTotalPaid(updatedSchedule);
-        const fullyPaid = order.totalAmount > 0 && totalPaidFromSchedule >= order.totalAmount;
-        
-        // Auto-update order status to delivered if fully paid
-        const newStatus = (allPaid || fullyPaid) ? 'delivered' : order.status;
-        
-        if (newStatus === 'delivered' && order.status !== 'delivered') {
-          willBeDelivered = true;
-        }
-        
-        return {
-          ...order,
-          paymentSchedule: updatedSchedule,
-          status: newStatus,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return order;
-    }));
+      const totalContractAmount = selectedOrderForPayment.totalAmount || 0;
 
-    // Build success message with remaining balance info
-    const updatedOrder = orders.find(o => o.id === selectedOrderForPayment.id);
-    if (updatedOrder && updatedOrder.paymentSchedule) {
-      // Simulate the updated schedule to calculate remaining
-      const simulatedSchedule = recordPayment(
-        updatedOrder.paymentSchedule,
+      const updatedSchedule = recordPayment(
+        selectedOrderForPayment.paymentSchedule || [],
         selectedInstallment.id,
         paymentForm.amount,
         paymentForm.method,
         paymentForm.date,
         paymentForm.notes
       );
-      const remainingInstallments = simulatedSchedule.filter(inst => inst.status !== 'paid').length;
-      const totalPaidNow = calculateTotalPaid(simulatedSchedule);
-      const totalRemaining = updatedOrder.totalAmount - totalPaidNow;
-      
+
+      const allPaid = updatedSchedule.every(inst => inst.status === 'paid');
+      const totalPaidFromSchedule = calculateTotalPaid(updatedSchedule);
+      const fullyPaid =
+        totalContractAmount > 0 && totalPaidFromSchedule >= totalContractAmount;
+      const newStatus = (allPaid || fullyPaid) ? 'delivered' : selectedOrderForPayment.status;
+      const willBeDelivered =
+        newStatus === 'delivered' && selectedOrderForPayment.status !== 'delivered';
+
+      const updatedOrder = await updateCustomOrderSchedule(
+        selectedOrderForPayment.id,
+        updatedSchedule,
+        willBeDelivered ? newStatus : undefined
+      );
+
+      const normalizedOrder = normalizeOrder(updatedOrder);
+      setOrders(prev =>
+        prev.map(order =>
+          order.id === normalizedOrder.id ? normalizedOrder : order
+        )
+      );
+
       let successMsg = `✓ Paiement enregistré avec succès !\n\n`;
-      successMsg += `💰 Montant payé: ${paymentForm.amount.toFixed(2)} DH\n`;
-      successMsg += `📊 Total payé: ${totalPaidNow.toFixed(2)} DH\n`;
-      successMsg += `📉 Restant: ${totalRemaining.toFixed(2)} DH\n`;
-      
-      if (remainingInstallments > 0) {
-        successMsg += `\n📅 Échéances restantes: ${remainingInstallments}`;
-      } else {
-        successMsg += `\n🎉 Toutes les échéances sont payées !`;
-      }
+      successMsg += `Client: ${selectedOrderForPayment.clientName}\n`;
+      successMsg += `Montant: ${paymentForm.amount.toFixed(2)} DH\n`;
+      successMsg += `Méthode: ${
+        paymentForm.method === 'cash' ? 'Espèces' :
+        paymentForm.method === 'card' ? 'Carte' :
+        paymentForm.method === 'check' ? 'Chèque' :
+        paymentForm.method === 'transfer' ? 'Virement' :
+        'Paiement Mobile'
+      }\n`;
+      successMsg += `Date: ${new Date(paymentForm.date).toLocaleDateString('fr-FR')}\n\n`;
+      successMsg += `💰 Total payé: ${totalPaidFromSchedule.toFixed(2)} DH\n`;
+      successMsg += `📉 Restant: ${Math.max(0, totalContractAmount - totalPaidFromSchedule).toFixed(2)} DH\n`;
 
       if (willBeDelivered) {
-        successMsg += `\n\n✓ Statut changé automatiquement à "Livrée"`;
+        successMsg += `\n\n🚚 La commande est maintenant marquée comme livrée.`;
+      } else if (totalContractAmount - totalPaidFromSchedule <= 0) {
+        successMsg += `\n\n🎉 Toutes les échéances ont été réglées.`;
       }
-      
+
       alert(successMsg);
-    } else {
-      alert(`✓ Paiement de ${paymentForm.amount.toFixed(2)} DH enregistré avec succès !`);
+
+      setShowPaymentModal(false);
+      setSelectedOrderForPayment(normalizedOrder);
+      setSelectedInstallment(null);
+      setPaymentForm({
+        amount: 0,
+        method: 'cash',
+        date: new Date().toISOString().split('T')[0],
+        notes: ''
+      });
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      alert('Impossible d\'enregistrer le paiement dans la base de données.');
+    } finally {
+      setIsRecordingPayment(false);
     }
-    
-    setShowPaymentModal(false);
-    setPaymentForm({
-      amount: 0,
-      method: 'cash',
-      date: new Date().toISOString().split('T')[0],
-      notes: ''
-    });
   };
 
   const openPaymentModal = (order: Order, installment?: PaymentInstallment) => {
@@ -606,9 +671,41 @@ export const OrderPaymentManagement: React.FC = () => {
     setShowPaymentModal(true);
   };
 
+  const handleRefreshOrders = () => {
+    if (isRefreshingOrders) return;
+    loadOrders(false);
+  };
+
   const toggleOrderExpansion = (orderId: string) => {
     setExpandedOrderId(prev => prev === orderId ? null : orderId);
   };
+
+  if (isLoadingOrders && orders.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="flex items-center justify-center py-12 bg-slate-800/60 border border-slate-700">
+          <Loader2 className="w-6 h-6 text-blue-400 animate-spin mr-3" />
+          <span className="text-slate-300">Chargement des commandes...</span>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isLoadingOrders && loadingError && orders.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="bg-red-500/10 border border-red-500/30 text-red-100">
+          <p className="mb-4">{loadingError}</p>
+          <Button
+            icon={RefreshCw}
+            onClick={() => loadOrders(true)}
+          >
+            Réessayer
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -617,10 +714,34 @@ export const OrderPaymentManagement: React.FC = () => {
           <h1 className="text-3xl font-bold text-white mb-2">Gestion des Commandes et Paiements</h1>
           <p className="text-slate-400">Suivez vos commandes et gérez les paiements</p>
         </div>
-        <Button icon={Plus} onClick={() => setShowCreateOrderModal(true)}>
-          Créer une Commande
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            icon={isRefreshingOrders ? Loader2 : RefreshCw}
+            onClick={handleRefreshOrders}
+            disabled={isRefreshingOrders}
+          >
+            {isRefreshingOrders ? 'Actualisation...' : 'Rafraîchir'}
+          </Button>
+          <Button icon={Plus} onClick={() => setShowCreateOrderModal(true)}>
+            Créer une Commande
+          </Button>
+        </div>
       </div>
+
+      {loadingError && orders.length > 0 && (
+        <Card className="bg-red-500/10 border border-red-500/30 text-red-100 flex items-center justify-between">
+          <p>{loadingError}</p>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={RefreshCw}
+            onClick={handleRefreshOrders}
+          >
+            Réessayer
+          </Button>
+        </Card>
+      )}
 
       {/* Overdue Payments Alert Section */}
       {ordersWithOverduePayments.length > 0 && (
@@ -740,24 +861,23 @@ export const OrderPaymentManagement: React.FC = () => {
       {/* Orders Table with Expandable Payment Details */}
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1100px]">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left py-3 text-slate-300 font-medium w-8"></th>
-                <th className="text-left py-3 text-slate-300 font-medium">Commande #</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Client</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Articles</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Montant Total</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Payé</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Restant</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Prochain Paiement</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
-                <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
+              <tr className="border-b border-slate-800/80">
+                <th className="text-left py-3 text-slate-300 font-medium w-10"></th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Commande #</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Client</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Articles</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Montant Total</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Payé</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Restant</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Prochain Paiement</th>
+                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Statut</th>
+                <th className="text-right py-3 text-slate-400 font-medium tracking-wide uppercase text-xs w-48">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-800/60">
               {filteredOrders.map((order) => {
-                const user = mockUsers.find(u => u.id === order.userId);
                 const isExpanded = expandedOrderId === order.id;
                 // Calculate payment totals including down payment
                 // Calculate payment totals
@@ -771,62 +891,71 @@ export const OrderPaymentManagement: React.FC = () => {
                 return (
                   <React.Fragment key={order.id}>
                     <tr 
-                      className="border-b border-slate-700/50 hover:bg-slate-700/40 cursor-pointer transition-colors"
+                      className="group cursor-pointer transition-all hover:bg-slate-800/40"
                       onClick={() => toggleOrderExpansion(order.id)}
                     >
-                      <td className="py-4 px-4">
+                      <td className="py-5 px-4 align-top">
                         {isExpanded ? (
                           <ChevronUp className="w-5 h-5 text-blue-400" />
                         ) : (
                           <ChevronDown className="w-5 h-5 text-slate-400" />
                         )}
                       </td>
-                      <td className="py-4 text-blue-400 font-mono font-semibold">#{order.id.slice(-6)}</td>
-                      <td className="py-4">
-                        <div>
-                          <p className="text-white font-semibold text-base">{order.clientName || user?.name || 'Utilisateur Inconnu'}</p>
-                          <p className="text-slate-400 text-sm flex items-center">
+                      <td className="py-5 pr-4 align-top">
+                        <p className="text-blue-400 font-mono font-semibold text-sm tracking-wide bg-blue-500/10 border border-blue-500/20 rounded-full inline-flex px-3 py-1">
+                          #{order.id.slice(-6)}
+                        </p>
+                      </td>
+                      <td className="py-5 pr-4 align-top">
+                        <div className="max-w-[220px]">
+                          <p className="text-white font-semibold text-base truncate" title={order.clientName || 'Client inconnu'}>
+                            {order.clientName || 'Client inconnu'}
+                          </p>
+                          <p className="text-slate-400 text-sm flex items-center mt-1 truncate" title={order.phoneNumber || '—'}>
                             <Phone className="w-3 h-3 mr-1" />
-                            {order.phoneNumber || user?.phone || '—'}
+                            {order.phoneNumber || '—'}
                           </p>
                         </div>
                       </td>
-                      <td className="py-4">
-                        <div className="flex items-center">
+                      <td className="py-5 pr-4 align-top">
+                        <div className="flex items-center text-slate-300 font-medium">
                           <Package className="w-4 h-4 text-slate-400 mr-2" />
                           <span className="text-slate-300">{order.pongeItems?.length || order.products.length}</span>
                         </div>
                       </td>
-                      <td className="py-4">
-                        <p className="text-white font-bold text-base">
+                      <td className="py-5 pr-4 align-top">
+                        <p className="text-white font-bold text-base whitespace-nowrap">
                           {order.totalAmount > 0 ? `${order.totalAmount.toFixed(2)} DH` : '—'}
                         </p>
                       </td>
-                      <td className="py-4">
-                        <div className="space-y-1">
-                          <p className="text-green-400 font-semibold">{totalPaid.toFixed(2)} DH</p>
+                      <td className="py-5 pr-4 align-top">
+                        <div className="space-y-2 w-36">
+                          <div className="flex items-center justify-between text-xs text-slate-400 uppercase tracking-wide">
+                            <span>Payé</span>
+                            <span className="text-green-400 font-semibold">{totalPaid.toFixed(2)} DH</span>
+                          </div>
                           {order.totalAmount > 0 && (
-                            <div className="w-24 bg-slate-600 rounded-full h-2.5 overflow-hidden">
+                            <div className="w-full bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
                               <div 
                                 className="bg-gradient-to-r from-green-500 to-green-400 h-2.5 rounded-full transition-all duration-500"
                                 style={{ width: `${Math.min(paymentProgress, 100)}%` }}
                               />
                             </div>
                           )}
-                          <p className="text-xs text-slate-400">{Math.round(paymentProgress)}%</p>
+                          <p className="text-xs text-slate-500 font-semibold">{Math.round(paymentProgress)}%</p>
                         </div>
                       </td>
-                      <td className="py-4">
+                      <td className="py-5 pr-4 align-top">
                         <p className={`font-semibold ${totalRemaining > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                           {totalRemaining.toFixed(2)} DH
                         </p>
                       </td>
-                      <td className="py-4">
+                      <td className="py-5 pr-4 align-top">
                         {nextPayment ? (
-                          <div className={`inline-flex flex-col p-2 rounded-lg ${
+                          <div className={`inline-flex flex-col p-3 rounded-2xl border ${
                             nextPayment.status === 'overdue' 
-                              ? 'bg-red-500/20 border border-red-500/30' 
-                              : 'bg-slate-700'
+                              ? 'bg-red-500/10 border-red-500/40 shadow-red-900/40' 
+                              : 'bg-slate-800/70 border-slate-700/60'
                           }`}>
                             <p className={`text-sm font-semibold ${
                               nextPayment.status === 'overdue' ? 'text-red-400' : 'text-white'
@@ -847,9 +976,9 @@ export const OrderPaymentManagement: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="py-4">
-                        <div className="space-y-1">
-                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
+                      <td className="py-5 pr-4 align-top">
+                        <div className="space-y-2">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold shadow-inner ${getStatusColor(order.status)}`}>
                             {getStatusIcon(order.status)}
                             <span className="ml-1.5">
                               {order.status === 'pending' && 'En Attente'}
@@ -865,15 +994,18 @@ export const OrderPaymentManagement: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 text-right">
-                        <div className="flex items-center justify-end space-x-2">
+                      <td className="py-5 pl-4 pr-2 text-right align-top">
+                        <div className="flex items-center justify-end space-x-3">
                           {nextPayment && nextPayment.status !== 'paid' && (
                             <Button
                               size="sm"
                               variant={nextPayment.status === 'overdue' ? "danger" : "primary"}
-                              icon={DollarSign}
-                              onClick={() => openPaymentModal(order, nextPayment)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPaymentModal(order, nextPayment);
+                              }}
                             >
+                              <DollarSign className="w-4 h-4 mr-1.5" />
                               Payer
                             </Button>
                           )}
@@ -881,7 +1013,9 @@ export const OrderPaymentManagement: React.FC = () => {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
+                              disabled={statusUpdatingOrderId === order.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (order.status === 'pending') {
                                   handleStartProcessing(order.id);
                                 } else {
@@ -889,16 +1023,30 @@ export const OrderPaymentManagement: React.FC = () => {
                                 }
                               }}
                             >
-                              {order.status === 'pending' ? 'Démarrer' : 'Livrer'}
+                              {statusUpdatingOrderId === order.id
+                                ? 'Patientez...'
+                                : order.status === 'pending'
+                                ? 'Démarrer'
+                                : 'Livrer'}
                             </Button>
                           )}
                           <Button
                             size="sm"
                             variant="danger"
-                            icon={Trash2}
-                            onClick={() => handleDeleteOrder(order.id)}
+                            disabled={deletingOrderId === order.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteOrder(order.id);
+                            }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingOrderId === order.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4 mr-1.5" />
+                                Supprimer
+                              </>
+                            )}
                           </Button>
                         </div>
                       </td>
@@ -983,7 +1131,10 @@ export const OrderPaymentManagement: React.FC = () => {
                                   <Button
                                     size="sm"
                                     icon={Plus}
-                                    onClick={() => openPaymentModal(order)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPaymentModal(order);
+                                    }}
                                   >
                                     Paiement
                                   </Button>
@@ -1099,7 +1250,10 @@ export const OrderPaymentManagement: React.FC = () => {
                                                 <Button
                                                   size="sm"
                                                   variant={installment.status === 'overdue' ? "danger" : "primary"}
-                                                  onClick={() => openPaymentModal(order, installment)}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openPaymentModal(order, installment);
+                                                  }}
                                                   className="w-full"
                                                 >
                                                   <DollarSign className="w-4 h-4 mr-1" />
@@ -1400,8 +1554,8 @@ export const OrderPaymentManagement: React.FC = () => {
         </div>
 
         <div className="flex space-x-3 pt-6 border-t border-slate-700">
-          <Button onClick={handleCreateOrder}>
-            Créer la Commande
+          <Button onClick={handleCreateOrder} disabled={isSubmittingOrder}>
+            {isSubmittingOrder ? 'Création en cours...' : 'Créer la Commande'}
           </Button>
           <Button variant="secondary" onClick={() => setShowCreateOrderModal(false)}>
             Annuler
@@ -1538,8 +1692,13 @@ export const OrderPaymentManagement: React.FC = () => {
         </div>
 
         <div className="flex space-x-3 pt-6 border-t-2 border-slate-600">
-          <Button onClick={handleAddPayment} icon={CreditCard} className="flex-1 py-3 text-base">
-            ✓ Enregistrer le Paiement
+          <Button
+            onClick={handleAddPayment}
+            icon={CreditCard}
+            className="flex-1 py-3 text-base"
+            disabled={isRecordingPayment}
+          >
+            {isRecordingPayment ? 'Enregistrement...' : '✓ Enregistrer le Paiement'}
           </Button>
           <Button variant="secondary" onClick={() => setShowPaymentModal(false)} className="px-6">
             Annuler

@@ -1,18 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Search, UserCheck, UserX, Eye, Trash2, Shield, ShieldOff } from 'lucide-react';
-import { mockUsers, mockOrders } from '../../data/mockData';
-import { User } from '../../types';
+import { User, Order } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Modal } from '../../components/common/Modal';
+import { 
+  fetchAllUsers, 
+  toggleUserBlock, 
+  updateUserRole, 
+  deleteUser 
+} from '../../utils/userService';
+import { fetchUserOrders } from '../../utils/orderService';
 
 export const UserManagement: React.FC = () => {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserOrders, setSelectedUserOrders] = useState<Order[]>([]);
+  const [selectedUserStats, setSelectedUserStats] = useState({ orderCount: 0, totalSpent: 0 });
+
+  // Load users from database on mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await fetchAllUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      alert('Failed to load users. Please refresh the page.');
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -21,58 +44,94 @@ export const UserManagement: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
-  const handleToggleBlock = (userId: string) => {
-    setUsers(prev => prev.map(user => 
-      user.id === userId ? { ...user, isBlocked: !user.isBlocked } : user
-    ));
+  const handleToggleBlock = async (userId: string) => {
     const user = users.find(u => u.id === userId);
-    alert(`L'utilisateur ${user?.name} a été ${user?.isBlocked ? 'débloqué' : 'bloqué'} avec succès !`);
-  };
+    if (!user) return;
 
-  const handleDeleteUser = (userId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action ne peut pas être annulée.')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
-      alert('Utilisateur supprimé avec succès !');
+    try {
+      await toggleUserBlock(userId, !user.isBlocked);
+      alert(`L'utilisateur ${user.name} a été ${user.isBlocked ? 'débloqué' : 'bloqué'} avec succès !`);
+      await loadUsers();
+    } catch (error) {
+      console.error('Error toggling user block:', error);
+      alert('Erreur lors du blocage/déblocage de l\'utilisateur.');
     }
   };
 
-  const handleViewUser = (user: User) => {
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action ne peut pas être annulée.')) {
+      return;
+    }
+
+    try {
+      await deleteUser(userId);
+      alert('Utilisateur supprimé avec succès !');
+      await loadUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Erreur lors de la suppression de l\'utilisateur.');
+    }
+  };
+
+  const handleViewUser = async (user: User) => {
     setSelectedUser(user);
     setShowUserModal(true);
+    
+    // Load user's orders
+    try {
+      const orders = await getUserOrders(user.id);
+      setSelectedUserOrders(orders);
+      
+      const totalSpent = orders.reduce((total, order) => total + order.totalAmount, 0);
+      setSelectedUserStats({
+        orderCount: orders.length,
+        totalSpent: totalSpent,
+      });
+    } catch (error) {
+      console.error('Error loading user orders:', error);
+      setSelectedUserOrders([]);
+      setSelectedUserStats({ orderCount: 0, totalSpent: 0 });
+    }
   };
 
-  const handlePromoteUser = (userId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir promouvoir cet utilisateur en admin ?')) {
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, role: 'admin' } : user
-      ));
+  const handlePromoteUser = async (userId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir promouvoir cet utilisateur en admin ?')) {
+      return;
+    }
+
+    try {
+      await updateUserRole(userId, 'ADMIN');
       alert('Utilisateur promu en admin avec succès !');
+      await loadUsers();
+    } catch (error) {
+      console.error('Error promoting user:', error);
+      alert('Erreur lors de la promotion de l\'utilisateur.');
     }
   };
 
-  const handleDemoteUser = (userId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir rétrograder cet admin en utilisateur ?')) {
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, role: 'user' } : user
-      ));
+  const handleDemoteUser = async (userId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir rétrograder cet admin en utilisateur ?')) {
+      return;
+    }
+
+    try {
+      await updateUserRole(userId, 'USER');
       alert('Admin rétrogradé en utilisateur avec succès !');
+      await loadUsers();
+    } catch (error) {
+      console.error('Error demoting user:', error);
+      alert('Erreur lors de la rétrogradation de l\'utilisateur.');
     }
   };
 
-  const handleResetPassword = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (confirm(`Êtes-vous sûr de vouloir réinitialiser le mot de passe pour ${user?.name} ?`)) {
-      // In a real app, this would send a password reset email
-      alert(`Email de réinitialisation du mot de passe envoyé à ${user?.email}`);
+  const getUserOrders = async (userId: string) => {
+    try {
+      const orders = await fetchUserOrders(userId);
+      return orders;
+    } catch (error) {
+      console.error('Error fetching user orders:', error);
+      return [];
     }
-  };
-
-  const getUserOrders = (userId: string) => {
-    return mockOrders.filter(order => order.userId === userId);
-  };
-
-  const getTotalSpent = (userId: string) => {
-    return getUserOrders(userId).reduce((total, order) => total + order.totalAmount, 0);
   };
 
   return (
@@ -119,19 +178,13 @@ export const UserManagement: React.FC = () => {
               <tr className="border-b border-slate-700">
                 <th className="text-left py-3 text-slate-300 font-medium">Utilisateur</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Rôle</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Commandes</th>
-                <th className="text-left py-3 text-slate-300 font-medium">Total Dépensé</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Statut</th>
                 <th className="text-left py-3 text-slate-300 font-medium">Inscrit</th>
                 <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => {
-                const userOrders = getUserOrders(user.id);
-                const totalSpent = getTotalSpent(user.id);
-                
-                return (
+              {filteredUsers.map((user) => (
                   <tr key={user.id} className="border-b border-slate-700/50">
                     <td className="py-4">
                       <div className="flex items-center space-x-3">
@@ -156,8 +209,6 @@ export const UserManagement: React.FC = () => {
                         {user.role.toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-4 text-slate-300">{userOrders.length}</td>
-                    <td className="py-4 text-white font-semibold">{totalSpent.toFixed(2)} DH</td>
                     <td className="py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         user.isBlocked
@@ -207,13 +258,6 @@ export const UserManagement: React.FC = () => {
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => handleResetPassword(user.id)}
-                        >
-                          Réinitialiser Mot de Passe
-                        </Button>
-                        <Button
-                          size="sm"
                           variant="danger"
                           icon={Trash2}
                           onClick={() => handleDeleteUser(user.id)}
@@ -223,8 +267,7 @@ export const UserManagement: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
@@ -286,11 +329,11 @@ export const UserManagement: React.FC = () => {
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-slate-400">Total Commandes:</span>
-                    <span className="text-white ml-2">{getUserOrders(selectedUser.id).length}</span>
+                    <span className="text-white ml-2">{selectedUserStats.orderCount}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Total Dépensé:</span>
-                    <span className="text-white ml-2">{getTotalSpent(selectedUser.id).toFixed(2)} DH</span>
+                    <span className="text-white ml-2">{selectedUserStats.totalSpent.toFixed(2)} DH</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Statut du Compte:</span>
@@ -305,10 +348,10 @@ export const UserManagement: React.FC = () => {
             <div>
               <h4 className="text-white font-semibold mb-3">Commandes Récentes</h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {getUserOrders(selectedUser.id).slice(0, 5).map((order) => (
+                {selectedUserOrders.slice(0, 5).map((order) => (
                   <div key={order.id} className="flex justify-between items-center p-2 bg-slate-700 rounded">
                     <div>
-                      <span className="text-white text-sm">Commande #{order.id}</span>
+                      <span className="text-white text-sm">Commande #{order.id.substring(0, 8)}</span>
                       <span className="text-slate-400 text-xs ml-2">
                         {new Date(order.createdAt).toLocaleDateString()}
                       </span>
@@ -325,7 +368,7 @@ export const UserManagement: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                {getUserOrders(selectedUser.id).length === 0 && (
+                {selectedUserOrders.length === 0 && (
                   <p className="text-slate-400 text-sm">Aucune commande pour le moment</p>
                 )}
               </div>

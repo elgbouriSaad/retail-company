@@ -5,41 +5,98 @@
 import { supabase, uploadFile, deleteFile } from '../lib/supabase';
 import { Product } from '../types';
 
+type SupabaseLike = {
+  from: (table: string) => ReturnType<typeof supabase.from>;
+  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }>;
+};
+
+const supabaseLike = supabase as unknown as SupabaseLike;
+
+type DbProductWithCategory = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number | null;
+  category: string | null;
+  category_id?: string | null;
+  images?: unknown;
+  sizes?: unknown;
+  stock?: number | null;
+  availability?: boolean | null;
+  created_at: string;
+  categories?: {
+    id: string;
+    name: string | null;
+    description: string | null;
+    cover_image: string | null;
+  };
+};
+
+const fromProducts = () => supabaseLike.from('products');
+
+const callRpc = (fn: string, args?: Record<string, unknown>) => supabaseLike.rpc(fn, args);
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+};
+
+const mapDbProductToProduct = (product: DbProductWithCategory): Product => ({
+  id: product.id,
+  name: product.name,
+  description: product.description || '',
+  price: Number(product.price) || 0,
+  category: product.categories?.name || product.category || 'Général',
+  categoryId: product.category_id || product.categories?.id,
+  images: toStringArray(product.images),
+  sizes: toStringArray(product.sizes),
+  stock: product.stock ?? 0,
+  availability: product.availability ?? true,
+  createdAt: product.created_at,
+});
+
 export interface ProductInput {
   name: string;
-  description: string;
-  price: number;
-  category: string;
-  sizes: string[];
-  stock: number;
-  availability: boolean;
+  description?: string;
+  categoryLabel?: string;
+  categoryId?: string;
+  price?: number;
+  sizes?: string[];
+  stock?: number;
+  availability?: boolean;
   images?: File[];
 }
 
 /**
  * Fetch all products
  */
-export async function fetchProducts(): Promise<Product[]> {
+export async function fetchProducts(categoryId?: string): Promise<Product[]> {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
+    let query = fromProducts()
+      .select(
+        `
+        *,
+        categories (
+          id,
+          name,
+          description,
+          cover_image
+        )
+      `
+      )
       .order('created_at', { ascending: false });
+
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    return (data || []).map(product => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: Number(product.price),
-      category: product.category.toLowerCase(),
-      images: Array.isArray(product.images) ? product.images : [],
-      sizes: Array.isArray(product.sizes) ? product.sizes : [],
-      stock: product.stock,
-      availability: product.availability,
-      createdAt: product.created_at,
-    }));
+    const rows = (data || []) as DbProductWithCategory[];
+
+    return rows.map(mapDbProductToProduct);
   } catch (error) {
     console.error('Error fetching products:', error);
     throw error;
@@ -51,9 +108,18 @@ export async function fetchProducts(): Promise<Product[]> {
  */
 export async function fetchProductById(id: string): Promise<Product | null> {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
+    const { data, error } = await fromProducts()
+      .select(
+        `
+        *,
+        categories (
+          id,
+          name,
+          description,
+          cover_image
+        )
+      `
+      )
       .eq('id', id)
       .single();
 
@@ -61,18 +127,9 @@ export async function fetchProductById(id: string): Promise<Product | null> {
 
     if (!data) return null;
 
-    return {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      price: Number(data.price),
-      category: data.category.toLowerCase(),
-      images: Array.isArray(data.images) ? data.images : [],
-      sizes: Array.isArray(data.sizes) ? data.sizes : [],
-      stock: data.stock,
-      availability: data.availability,
-      createdAt: data.created_at,
-    };
+    const row = data as DbProductWithCategory;
+
+    return mapDbProductToProduct(row);
   } catch (error) {
     console.error('Error fetching product:', error);
     throw error;
@@ -96,16 +153,18 @@ export async function createProduct(productData: ProductInput): Promise<Product>
     }
 
     // Create product in database
-    const { data, error } = await supabase
-      .from('products')
+    const categoryLabel = productData.categoryLabel || 'AUTRE';
+
+    const { data, error } = await fromProducts()
       .insert({
         name: productData.name,
-        description: productData.description,
-        price: productData.price,
-        category: productData.category.toUpperCase(),
-        sizes: productData.sizes,
-        stock: productData.stock,
-        availability: productData.availability,
+        description: productData.description || '',
+        price: productData.price ?? 0,
+        category: categoryLabel.toUpperCase(),
+        category_id: productData.categoryId,
+        sizes: productData.sizes ?? [],
+        stock: productData.stock ?? 0,
+        availability: productData.availability ?? true,
         images: imageUrls,
       })
       .select()
@@ -113,18 +172,8 @@ export async function createProduct(productData: ProductInput): Promise<Product>
 
     if (error) throw error;
 
-    return {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      price: Number(data.price),
-      category: data.category.toLowerCase(),
-      images: Array.isArray(data.images) ? data.images : [],
-      sizes: Array.isArray(data.sizes) ? data.sizes : [],
-      stock: data.stock,
-      availability: data.availability,
-      createdAt: data.created_at,
-    };
+    const row = data as DbProductWithCategory;
+    return mapDbProductToProduct(row);
   } catch (error) {
     console.error('Error creating product:', error);
     throw error;
@@ -141,34 +190,34 @@ export async function updateProduct(
 ): Promise<Product> {
   try {
     // Upload new images if provided
-    let imageUrls: string[] = [];
+    const uploadedImages: string[] = [];
     if (newImages && newImages.length > 0) {
       for (const imageFile of newImages) {
         const timestamp = Date.now();
         const path = `products/${timestamp}-${imageFile.name}`;
         const url = await uploadFile('product-images', path, imageFile);
-        imageUrls.push(url);
+        uploadedImages.push(url);
       }
     }
 
     // Prepare update data
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (updates.name) updateData.name = updates.name;
     if (updates.description) updateData.description = updates.description;
     if (updates.price !== undefined) updateData.price = updates.price;
-    if (updates.category) updateData.category = updates.category.toUpperCase();
+    if (updates.categoryLabel) updateData.category = updates.categoryLabel.toUpperCase();
+    if (updates.categoryId) updateData.category_id = updates.categoryId;
     if (updates.sizes) updateData.sizes = updates.sizes;
     if (updates.stock !== undefined) updateData.stock = updates.stock;
     if (updates.availability !== undefined) updateData.availability = updates.availability;
     
     // If new images uploaded, append to existing or replace
-    if (imageUrls.length > 0) {
+    if (uploadedImages.length > 0) {
       const existing = await fetchProductById(id);
-      updateData.images = [...(existing?.images || []), ...imageUrls];
+      updateData.images = [...(existing?.images || []), ...uploadedImages];
     }
 
-    const { data, error } = await supabase
-      .from('products')
+    const { data, error } = await fromProducts()
       .update(updateData)
       .eq('id', id)
       .select()
@@ -176,18 +225,8 @@ export async function updateProduct(
 
     if (error) throw error;
 
-    return {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      price: Number(data.price),
-      category: data.category.toLowerCase(),
-      images: Array.isArray(data.images) ? data.images : [],
-      sizes: Array.isArray(data.sizes) ? data.sizes : [],
-      stock: data.stock,
-      availability: data.availability,
-      createdAt: data.created_at,
-    };
+    const row = data as DbProductWithCategory;
+    return mapDbProductToProduct(row);
   } catch (error) {
     console.error('Error updating product:', error);
     throw error;
@@ -203,8 +242,7 @@ export async function deleteProduct(id: string): Promise<void> {
     const product = await fetchProductById(id);
     
     // Delete the product from database (CASCADE will handle order_items)
-    const { error } = await supabase
-      .from('products')
+    const { error } = await fromProducts()
       .delete()
       .eq('id', id);
 
@@ -238,23 +276,12 @@ export async function deleteProduct(id: string): Promise<void> {
  */
 export async function searchProducts(searchTerm: string): Promise<Product[]> {
   try {
-    const { data, error } = await supabase
-      .rpc('search_products', { search_term: searchTerm });
+    const { data, error } = await callRpc('search_products', { search_term: searchTerm });
 
     if (error) throw error;
 
-    return (data || []).map((product: any) => ({
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      price: Number(product.price),
-      category: product.category.toLowerCase(),
-      images: Array.isArray(product.images) ? product.images : [],
-      sizes: Array.isArray(product.sizes) ? product.sizes : [],
-      stock: product.stock,
-      availability: product.availability,
-      createdAt: product.created_at,
-    }));
+    const rows = (data || []) as DbProductWithCategory[];
+    return rows.map(mapDbProductToProduct);
   } catch (error) {
     console.error('Error searching products:', error);
     // Fallback to client-side search if RPC not available
@@ -272,8 +299,7 @@ export async function searchProducts(searchTerm: string): Promise<Product[]> {
  */
 export async function updateProductStock(id: string, quantity: number): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('products')
+    const { error } = await fromProducts()
       .update({ stock: quantity })
       .eq('id', id);
 
@@ -289,8 +315,7 @@ export async function updateProductStock(id: string, quantity: number): Promise<
  */
 export async function toggleProductAvailability(id: string, available: boolean): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('products')
+    const { error } = await fromProducts()
       .update({ availability: available })
       .eq('id', id);
 
@@ -311,8 +336,7 @@ export async function removeProductImage(productId: string, imageUrl: string): P
 
     const updatedImages = product.images.filter(url => url !== imageUrl);
 
-    const { error } = await supabase
-      .from('products')
+    const { error } = await fromProducts()
       .update({ images: updatedImages })
       .eq('id', productId);
 

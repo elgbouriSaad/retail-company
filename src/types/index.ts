@@ -16,11 +16,22 @@ export interface Product {
   description: string;
   price: number;
   category: string;
+  categoryId?: string;
   images: string[];
   sizes: string[];
   stock: number;
   availability: boolean;
   createdAt: string;
+}
+
+export interface CategorySummary {
+  id: string;
+  name: string;
+  description?: string;
+  coverImage?: string;
+  articleCount?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PaymentInstallment {

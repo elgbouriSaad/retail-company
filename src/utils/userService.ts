@@ -3,31 +3,38 @@
  */
 
 import { supabase } from '../lib/supabase';
+const fromUsers = () => (supabase as unknown as any).from('users');
+
+import type { Database } from '../lib/database.types';
 import { User } from '../types';
+
+type DbUserRow = Database['public']['Tables']['users']['Row'];
+
+const mapDbUserToUser = (user: DbUserRow): User => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  role: user.role.toLowerCase() as 'user' | 'admin',
+  phone: user.phone || undefined,
+  address: user.address || undefined,
+  avatar: user.avatar || undefined,
+  createdAt: user.created_at,
+  isBlocked: user.is_blocked,
+});
 
 /**
  * Fetch all users (admin only)
  */
 export async function fetchAllUsers(): Promise<User[]> {
   try {
-    const { data, error } = await supabase
-      .from('users')
+    const { data, error } = await fromUsers()
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    return (data || []).map(user => ({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.toLowerCase() as 'user' | 'admin',
-      phone: user.phone || undefined,
-      address: user.address || undefined,
-      avatar: user.avatar || undefined,
-      createdAt: user.created_at,
-      isBlocked: user.is_blocked,
-    }));
+    const rows = (data || []) as DbUserRow[];
+    return rows.map(mapDbUserToUser);
   } catch (error) {
     console.error('Error fetching users:', error);
     throw error;
@@ -39,8 +46,7 @@ export async function fetchAllUsers(): Promise<User[]> {
  */
 export async function fetchUserById(userId: string): Promise<User | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
+    const { data, error } = await fromUsers()
       .select('*')
       .eq('id', userId)
       .single();
@@ -49,17 +55,7 @@ export async function fetchUserById(userId: string): Promise<User | null> {
 
     if (!data) return null;
 
-    return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role.toLowerCase() as 'user' | 'admin',
-      phone: data.phone || undefined,
-      address: data.address || undefined,
-      avatar: data.avatar || undefined,
-      createdAt: data.created_at,
-      isBlocked: data.is_blocked,
-    };
+    return mapDbUserToUser(data as DbUserRow);
   } catch (error) {
     console.error('Error fetching user:', error);
     throw error;
@@ -71,9 +67,8 @@ export async function fetchUserById(userId: string): Promise<User | null> {
  */
 export async function updateUserRole(userId: string, role: 'USER' | 'ADMIN'): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('users')
-      .update({ role })
+    const { error } = await fromUsers()
+      .update({ role } as Partial<DbUserRow>)
       .eq('id', userId);
 
     if (error) throw error;
@@ -88,9 +83,8 @@ export async function updateUserRole(userId: string, role: 'USER' | 'ADMIN'): Pr
  */
 export async function toggleUserBlock(userId: string, isBlocked: boolean): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_blocked: isBlocked })
+    const { error } = await fromUsers()
+      .update({ is_blocked: isBlocked } as Partial<DbUserRow>)
       .eq('id', userId);
 
     if (error) throw error;
@@ -106,21 +100,16 @@ export async function toggleUserBlock(userId: string, isBlocked: boolean): Promi
  */
 export async function deleteUser(userId: string): Promise<void> {
   try {
-    // Delete from auth.users first (will CASCADE to public.users)
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    
-    if (authError) {
-      // If admin API not available, delete from public.users
-      // (this won't remove from auth.users, so user could potentially still login)
-      console.warn('Could not delete auth user, removing from public.users only');
-      
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-      
-      if (error) throw error;
-    }
+    const { error } = await (supabase as unknown as {
+      rpc: (
+        fn: string,
+        args?: Record<string, unknown>
+      ) => Promise<{ data: unknown; error: Error | null }>;
+    }).rpc('delete_user_completely', {
+      p_user_id: userId,
+    });
+
+    if (error) throw error;
   } catch (error) {
     console.error('Error deleting user:', error);
     throw error;
@@ -140,14 +129,13 @@ export async function updateUserProfile(
   }
 ): Promise<User> {
   try {
-    const updateData: any = {};
+    const updateData: Partial<DbUserRow> = {};
     if (updates.name) updateData.name = updates.name;
     if (updates.phone !== undefined) updateData.phone = updates.phone;
     if (updates.address !== undefined) updateData.address = updates.address;
     if (updates.avatar !== undefined) updateData.avatar = updates.avatar;
 
-    const { data, error } = await supabase
-      .from('users')
+    const { data, error } = await fromUsers()
       .update(updateData)
       .eq('id', userId)
       .select()
@@ -155,17 +143,7 @@ export async function updateUserProfile(
 
     if (error) throw error;
 
-    return {
-      id: data.id,
-      email: data.email,
-      name: data.name,
-      role: data.role.toLowerCase() as 'user' | 'admin',
-      phone: data.phone || undefined,
-      address: data.address || undefined,
-      avatar: data.avatar || undefined,
-      createdAt: data.created_at,
-      isBlocked: data.is_blocked,
-    };
+    return mapDbUserToUser(data as DbUserRow);
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;
@@ -177,25 +155,15 @@ export async function updateUserProfile(
  */
 export async function searchUsers(searchTerm: string): Promise<User[]> {
   try {
-    const { data, error } = await supabase
-      .from('users')
+    const { data, error } = await fromUsers()
       .select('*')
       .or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    return (data || []).map(user => ({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.toLowerCase() as 'user' | 'admin',
-      phone: user.phone || undefined,
-      address: user.address || undefined,
-      avatar: user.avatar || undefined,
-      createdAt: user.created_at,
-      isBlocked: user.is_blocked,
-    }));
+    const rows = (data || []) as DbUserRow[];
+    return rows.map(mapDbUserToUser);
   } catch (error) {
     console.error('Error searching users:', error);
     throw error;
@@ -212,17 +180,14 @@ export async function getUserStats(): Promise<{
   adminUsers: number;
 }> {
   try {
-    const { count: totalUsers } = await supabase
-      .from('users')
+    const { count: totalUsers } = await fromUsers()
       .select('*', { count: 'exact', head: true });
 
-    const { count: blockedUsers } = await supabase
-      .from('users')
+    const { count: blockedUsers } = await fromUsers()
       .select('*', { count: 'exact', head: true })
       .eq('is_blocked', true);
 
-    const { count: adminUsers } = await supabase
-      .from('users')
+    const { count: adminUsers } = await fromUsers()
       .select('*', { count: 'exact', head: true })
       .eq('role', 'ADMIN');
 
@@ -248,8 +213,7 @@ export async function getUserStats(): Promise<{
  */
 export async function checkEmailExists(email: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('users')
+    const { data, error } = await fromUsers()
       .select('id')
       .eq('email', email)
       .maybeSingle();

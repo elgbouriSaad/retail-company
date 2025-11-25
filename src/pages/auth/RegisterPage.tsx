@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Scissors, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Scissors, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
+import { supabase, checkSupabaseHealth } from '../../lib/supabase';
 
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -14,34 +15,98 @@ export const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const [isSupabaseHealthy, setIsSupabaseHealthy] = useState(true);
+  const { session } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [session, navigate]);
+
+  // Check Supabase health on component mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      const isHealthy = await checkSupabaseHealth();
+      setIsSupabaseHealthy(isHealthy);
+      if (!isHealthy) {
+        setError('Service temporarily unavailable. Please try again later.');
+      }
+    };
+    checkHealth();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
+    // Client-side validation
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must contain both letters and numbers');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const success = await register(name, email, password);
-      if (!success) {
-        setError('User with this email already exists');
-      } else {
-        navigate('/dashboard');
+      // Check database health before attempting registration
+      const isHealthy = await checkSupabaseHealth();
+      if (!isHealthy) {
+        setError('Service temporarily unavailable. Please check your connection and try again later.');
+        setIsSupabaseHealthy(false);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsSupabaseHealthy(true);
+      
+      // Register directly with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) {
+        // Handle specific errors
+        if (error.message.includes('already registered') || error.message.includes('already exists')) {
+          setError('This email is already registered. Please try logging in instead.');
+        } else if (error.message.includes('Password') && error.message.includes('weak')) {
+          setError('Password is too weak. Use at least 8 characters with letters and numbers.');
+        } else {
+          setError(error.message);
+        }
+        return;
+      }
+
+      if (data.session) {
+        // User auto-confirmed and logged in
+        console.log('✅ Registration successful');
+        // onAuthStateChange will handle state update and redirect
+      } else if (data.user) {
+        // Email confirmation required
+        setError('Registration successful! Please check your email to confirm your account.');
+        setIsLoading(false);
       }
     } catch (err) {
-      setError('An error occurred during registration');
+      console.error('Registration error:', err);
+      setError('An error occurred during registration. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +124,18 @@ export const RegisterPage: React.FC = () => {
         </div>
 
         <Card>
+          {!isSupabaseHealthy && (
+            <div className="mb-4 p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-yellow-200 font-medium">Service Status Warning</p>
+                <p className="text-yellow-300/80 text-sm mt-1">
+                  Connection issues detected. Registration may be temporarily unavailable. Please try again later.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input
               label="Full Name"
@@ -115,10 +192,10 @@ export const RegisterPage: React.FC = () => {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isSupabaseHealthy}
               className="w-full"
             >
-              {isLoading ? 'Creating account...' : 'Create Account'}
+              {isLoading ? 'Creating account...' : isSupabaseHealthy ? 'Create Account' : 'Service Unavailable'}
             </Button>
           </form>
 

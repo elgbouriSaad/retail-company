@@ -6,7 +6,6 @@ import {
   ShoppingCart, 
   Phone, 
   User, 
-  Settings,
   Users,
   Package,
   BarChart3,
@@ -16,12 +15,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useUserProfile } from '../../hooks/useUserProfile';
 import { Button } from '../common/Button';
 
 export const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { session, user, signOut } = useAuth();
+  const { profile } = useUserProfile();
   const { getTotalItems } = useCart();
   const location = useLocation();
+
+  // Get user info from profile (preferred) or session fallback
+  const userName = profile?.name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
+  const userRole = profile?.role || user?.user_metadata?.role?.toLowerCase() || 'user';
 
   const userNavItems = [
     { path: '/dashboard', icon: Home, label: 'Tableau de Bord' },
@@ -36,10 +41,9 @@ export const Navbar: React.FC = () => {
     { path: '/admin/catalogue', icon: Package, label: 'Catalogue' },
     { path: '/admin/users', icon: Users, label: 'Utilisateurs' },
     { path: '/admin/orders', icon: ShoppingCart, label: 'Commandes & Paiements' },
-    { path: '/admin/settings', icon: Settings, label: 'Paramètres' },
   ];
 
-  const navItems = user?.role === 'admin' ? adminNavItems : userNavItems;
+  const navItems = userRole === 'admin' ? adminNavItems : userNavItems;
   const cartItemCount = getTotalItems();
 
   return (
@@ -75,23 +79,26 @@ export const Navbar: React.FC = () => {
           })}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-700">
-          <div className="flex items-center space-x-3 mb-4">
+        <div className="mt-8 pt-6 border-t border-slate-700 space-y-2">
+          <Link
+            to="/profile"
+            className="flex items-center space-x-3 mb-2 text-slate-200 hover:text-white"
+          >
             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
               <span className="text-white font-semibold">
-                {user?.name?.charAt(0).toUpperCase()}
+                {userName?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div>
-              <p className="text-white font-medium">{user?.name}</p>
-              <p className="text-slate-400 text-sm capitalize">{user?.role}</p>
+              <p className="text-white font-medium">{userName}</p>
+              <p className="text-slate-400 text-sm capitalize">{userRole}</p>
             </div>
-          </div>
+          </Link>
           <Button
             variant="ghost"
             size="sm"
             icon={LogOut}
-            onClick={logout}
+            onClick={signOut}
             className="w-full justify-start"
           >
             Déconnexion

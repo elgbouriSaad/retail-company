@@ -1,44 +1,95 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Trash2, Plus, Minus } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-import { mockOrders } from '../../data/mockData';
+import { Order } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { fetchUserOrders, createOrder } from '../../utils/orderService';
 
 export const OrdersPage: React.FC = () => {
   const { cartItems, updateQuantity, removeFromCart, getTotalAmount, clearCart } = useCart();
   const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
 
-  const userOrders = mockOrders.filter(order => order.userId === user?.id);
+  // Load user's orders from database
+  useEffect(() => {
+    if (user?.id) {
+      loadOrders();
+    }
+  }, [user?.id]);
 
-  const handleSubmitOrder = () => {
-    // In a real app, this would submit to an API
+  const loadOrders = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const data = await fetchUserOrders(user.id);
+      setOrders(data);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitOrder = async () => {
     const orderTotal = getTotalAmount();
     if (orderTotal === 0) {
       alert('Your cart is empty. Please add some items before submitting an order.');
       return;
     }
-    
-    setOrderSubmitted(true);
-    clearCart();
-    
-    // Show success message
-    setTimeout(() => {
-      alert(`Order submitted successfully! Total: $${orderTotal.toFixed(2)}. You will receive a confirmation email shortly.`);
-    }, 1000);
-    
-    setTimeout(() => {
-      setShowOrderModal(false);
-      setOrderSubmitted(false);
-    }, 2000);
+
+    if (!user?.id) {
+      alert('You must be logged in to submit an order.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create order in database
+      const orderItems = cartItems.map(item => ({
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.quantity,
+        size: item.size,
+        price: item.product.price,
+      }));
+
+      await createOrder({
+        userId: user.id,
+        items: orderItems,
+      });
+
+      setOrderSubmitted(true);
+      clearCart();
+      
+      // Show success message
+      setTimeout(() => {
+        alert(`Order submitted successfully! Total: $${orderTotal.toFixed(2)}. You will receive a confirmation shortly.`);
+      }, 500);
+      
+      // Reload orders list
+      setTimeout(async () => {
+        setShowOrderModal(false);
+        setOrderSubmitted(false);
+        await loadOrders();
+      }, 1500);
+    } catch (error) {
+      console.error('Error submitting order:', error);
+      alert('Error submitting order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewOrderDetails = (orderId: string) => {
-    const order = userOrders.find(o => o.id === orderId);
+    const order = orders.find(o => o.id === orderId);
     if (order) {
       alert(`Order #${orderId} Details:\nStatus: ${order.status}\nTotal: $${order.totalAmount.toFixed(2)}\nDate: ${new Date(order.createdAt).toLocaleDateString()}`);
     }
@@ -49,7 +100,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleReorderItems = (orderId: string) => {
-    const order = userOrders.find(o => o.id === orderId);
+    const order = orders.find(o => o.id === orderId);
     if (order) {
       // Add all items from the order back to cart
       order.products.forEach(product => {
@@ -168,13 +219,13 @@ export const OrdersPage: React.FC = () => {
       <Card>
         <h2 className="text-xl font-semibold text-white mb-6">Order History</h2>
 
-        {userOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-slate-400">No orders yet</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {userOrders.map((order) => (
+            {orders.map((order) => (
               <div key={order.id} className="p-4 bg-slate-700 rounded-lg">
                 <div className="flex items-center justify-between mb-3">
                   <div>

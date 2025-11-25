@@ -24,34 +24,116 @@ if (!supabaseAnonKey) {
 }
 
 /**
- * Supabase client instance
+ * Supabase client instance (Singleton pattern)
  * - Uses TypeScript types from database.types.ts
  * - Configured with auth persistence and automatic token refresh
+ * - Ensures only one client instance exists to avoid multiple client warnings
  */
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // Store auth session in local storage
-    storage: localStorage,
-    // Automatically refresh tokens before they expire
-    autoRefreshToken: true,
-    // Persist session across browser sessions
-    persistSession: true,
-    // Detect session from URL (for email confirmations, password resets, etc.)
-    detectSessionInUrl: true,
-  },
-  // Global headers for all requests
-  global: {
-    headers: {
-      'x-application-name': 'retail-company-platform',
+
+// Check if client already exists (prevents multiple instances in StrictMode)
+let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null;
+
+const createSupabaseClient = () => {
+  if (supabaseInstance) {
+    return supabaseInstance;
+  }
+
+  supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      // Store auth session in local storage
+      storage: localStorage,
+      // Automatically refresh tokens before they expire
+      autoRefreshToken: true,
+      // Persist session across browser sessions
+      persistSession: true,
+      // Detect session from URL (for email confirmations, password resets, etc.)
+      detectSessionInUrl: true,
+      // Use PKCE flow for enhanced security
+      flowType: 'pkce',
+      // Storage key
+      storageKey: 'supabase.auth.token',
+      // Debug mode off for production
+      debug: false,
     },
-  },
-  // Realtime configuration (if needed for live updates)
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+    // Global headers for all requests
+    global: {
+      headers: {
+        'x-application-name': 'retail-company-platform',
+      },
     },
-  },
-});
+    // Realtime configuration (if needed for live updates)
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+  });
+
+  return supabaseInstance;
+};
+
+// Export the singleton instance
+export const supabase = createSupabaseClient();
+
+/**
+ * =====================================================
+ * HEALTH CHECK SYSTEM
+ * =====================================================
+ */
+
+/**
+ * Check Supabase connection health with retry logic
+ * Implements exponential backoff for transient failures
+ * @returns true if connection is healthy, false otherwise
+ */
+export const checkSupabaseHealth = async (): Promise<boolean> => {
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 1000; // 1 second base delay
+
+  for (let attempts = 0; attempts < MAX_RETRIES; attempts++) {
+    try {
+      // Try to get current session as health check
+      const { error } = await supabase.auth.getSession();
+
+      // Check for invalid API key error
+      if (error?.message?.includes('Invalid API key')) {
+        console.error('❌ Supabase health check failed: Invalid API key');
+        return false;
+      }
+
+      // If we got an error but have retries left, retry with backoff
+      if (error && attempts < MAX_RETRIES - 1) {
+        const delay = RETRY_DELAY * Math.pow(2, attempts);
+        console.warn(`⚠️ Supabase health check attempt ${attempts + 1} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // If error persists after all retries
+      if (error) {
+        console.error('❌ Supabase health check failed after all retries:', error);
+        throw error;
+      }
+
+      // Health check passed
+      console.log('✅ Supabase health check passed');
+      return true;
+    } catch (error) {
+      console.error(`❌ Supabase health check error (attempt ${attempts + 1}/${MAX_RETRIES}):`, error);
+      
+      // If this was the last attempt, return false
+      if (attempts === MAX_RETRIES - 1) {
+        return false;
+      }
+
+      // Wait before retrying with exponential backoff
+      const delay = RETRY_DELAY * Math.pow(2, attempts);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  return false;
+};
 
 /**
  * =====================================================
@@ -76,7 +158,18 @@ export const getCurrentUser = async () => {
  * Get the current user's profile from the users table
  * @returns User profile object or null
  */
-export const getUserProfile = async () => {
+export const getUserProfile = async (): Promise<{
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  phone?: string;
+  address?: string;
+  avatar?: string;
+  is_blocked: boolean;
+  created_at: string;
+  updated_at: string;
+} | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -91,7 +184,18 @@ export const getUserProfile = async () => {
     return null;
   }
 
-  return data;
+  return data as {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    phone?: string;
+    address?: string;
+    avatar?: string;
+    is_blocked: boolean;
+    created_at: string;
+    updated_at: string;
+  } | null;
 };
 
 /**
@@ -203,24 +307,26 @@ export const getSignedUrl = async (
  * @param error - Supabase error object
  * @returns User-friendly error message
  */
-export const formatSupabaseError = (error: any): string => {
+export const formatSupabaseError = (error: unknown): string => {
   if (!error) return 'An unknown error occurred';
 
+  const err = error as { code?: string; message?: string };
+
   // Handle specific error codes
-  if (error.code === 'PGRST116') {
+  if (err.code === 'PGRST116') {
     return 'No data found';
   }
-  if (error.code === '23505') {
+  if (err.code === '23505') {
     return 'This record already exists';
   }
-  if (error.code === '23503') {
+  if (err.code === '23503') {
     return 'Cannot delete: related records exist';
   }
-  if (error.message?.includes('JWT')) {
+  if (err.message?.includes('JWT')) {
     return 'Session expired. Please log in again';
   }
 
-  return error.message || 'An error occurred';
+  return err.message || 'An error occurred';
 };
 
 /**
