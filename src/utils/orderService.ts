@@ -338,3 +338,47 @@ export async function getSalesStats(startDate?: string, endDate?: string): Promi
   }
 }
 
+/**
+ * Fetch orders with status IN_PROGRESS
+ */
+export async function fetchInProgressRegularOrders(): Promise<Order[]> {
+  try {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        order_items (
+          id,
+          product_id,
+          product_name,
+          quantity,
+          size,
+          price
+        )
+      `)
+      .eq('status', 'IN_PROGRESS')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (orders || []).map(order => ({
+      id: order.id,
+      userId: order.user_id,
+      products: (order.order_items || []).map((item: any) => ({
+        productId: item.product_id,
+        productName: item.product_name,
+        quantity: item.quantity,
+        size: item.size,
+        price: Number(item.price),
+      })),
+      status: order.status.toLowerCase().replace('_', '-') as 'pending' | 'in-progress' | 'delivered',
+      totalAmount: Number(order.total_amount),
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching in-progress regular orders:', error);
+    throw error;
+  }
+}
+

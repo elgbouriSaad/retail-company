@@ -1,77 +1,144 @@
-import React, { useState } from 'react';
-import { Users, Package, ShoppingCart, TrendingUp, DollarSign, Clock, Plus, Eye, AlertTriangle, BarChart3 } from 'lucide-react';
-import { mockUsers, mockProducts, mockOrders } from '../../data/mockData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Clock, Calendar, User, Phone, Package, AlertCircle, Loader2, RefreshCw, PlayCircle, DollarSign } from 'lucide-react';
 import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
-import { Input } from '../../components/common/Input';
+import { Order } from '../../types';
+import { fetchUpcomingOrders, fetchInProgressOrders, fetchUnpaidOrders, calculateTotalPaid, fetchCustomOrders } from '../../utils/customOrderService';
+import { fetchAllOrders, fetchInProgressRegularOrders } from '../../utils/orderService';
 
 export const AdminDashboard: React.FC = () => {
-  const [showAddProductModal, setShowAddProductModal] = useState(false);
-  const [showPendingOrdersModal, setShowPendingOrdersModal] = useState(false);
-  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
-  const [productForm, setProductForm] = useState({
-    name: '',
-    description: '',
-    price: '',
-    category: 'fabrics',
-    sizes: '',
-    stock: '',
-    images: '',
-  });
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
+  const [inProgressOrders, setInProgressOrders] = useState<Order[]>([]);
+  const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalUsers = mockUsers.filter(u => u.role === 'user').length;
-  const totalProducts = mockProducts.length;
-  const totalOrders = mockOrders.length;
-  const pendingOrders = mockOrders.filter(o => o.status === 'pending').length;
-  const inProgressOrders = mockOrders.filter(o => o.status === 'in-progress').length;
-  const deliveredOrders = mockOrders.filter(o => o.status === 'delivered').length;
+  const handleOrderClick = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderDetailsModal(true);
+  };
+
+  // Charger les données depuis la base de données
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError(null);
+      
+      // Charger toutes les données en parallèle
+      const [upcoming, customInProgress, regularInProgress, allCustomOrders, allRegularOrders] = await Promise.all([
+        fetchUpcomingOrders(),
+        fetchInProgressOrders(),
+        fetchInProgressRegularOrders(),
+        fetchCustomOrders(),
+        fetchAllOrders()
+      ]);
+      
+      // Combiner les commandes en cours
+      const combinedInProgress = [...customInProgress, ...regularInProgress];
+      
+      // Filtrer toutes les commandes personnalisées non payées
+      const unpaidCustomOrders = allCustomOrders.filter(order => {
+        const totalPaid = calculateTotalPaid(order);
+        console.log(`Commande ${order.id}: Total=${order.totalAmount}, Payé=${totalPaid}, Restant=${order.totalAmount - totalPaid}`);
+        return totalPaid < order.totalAmount;
+      });
+      
+      console.log(`Total custom orders: ${allCustomOrders.length}, Unpaid: ${unpaidCustomOrders.length}`);
+      
+      setUpcomingOrders(upcoming);
+      setInProgressOrders(combinedInProgress);
+      setUnpaidOrders(unpaidCustomOrders);
+      setAllOrders([...allCustomOrders, ...allRegularOrders]);
+    } catch (err) {
+      console.error('Erreur lors du chargement des données:', err);
+      setError('Erreur lors du chargement des données. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const totalOrders = allOrders.length;
+  const pendingOrdersCount = allOrders.filter(o => o.status === 'pending').length;
+  const inProgressOrdersCount = allOrders.filter(o => o.status === 'in-progress').length;
+  const deliveredOrdersCount = allOrders.filter(o => o.status === 'delivered').length;
   
-  // Financial calculations
-  const totalRevenue = mockOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const pendingRevenue = mockOrders
+  // Calculs financiers
+  const totalRevenue = allOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const pendingRevenue = allOrders
     .filter(o => o.status === 'pending')
     .reduce((sum, order) => sum + order.totalAmount, 0);
-  const completedRevenue = mockOrders
+  const completedRevenue = allOrders
     .filter(o => o.status === 'delivered')
     .reduce((sum, order) => sum + order.totalAmount, 0);
-  const inProgressRevenue = mockOrders
+  const inProgressRevenue = allOrders
     .filter(o => o.status === 'in-progress')
     .reduce((sum, order) => sum + order.totalAmount, 0);
 
-  // Monthly revenue calculation (mock data for last 6 months)
+  // Calcul du revenu mensuel (données des 6 derniers mois)
   const monthlyRevenue = [
     { month: 'Jan', revenue: 2400, orders: 12 },
-    { month: 'Feb', revenue: 1800, orders: 8 },
+    { month: 'Fév', revenue: 1800, orders: 8 },
     { month: 'Mar', revenue: 3200, orders: 15 },
-    { month: 'Apr', revenue: 2800, orders: 13 },
-    { month: 'May', revenue: 3600, orders: 18 },
-    { month: 'Jun', revenue: completedRevenue, orders: deliveredOrders },
+    { month: 'Avr', revenue: 2800, orders: 13 },
+    { month: 'Mai', revenue: 3600, orders: 18 },
+    { month: 'Jui', revenue: completedRevenue, orders: deliveredOrdersCount },
   ];
 
   const orderStatusData = [
-    { status: 'En Attente', count: pendingOrders, color: 'bg-yellow-500', revenue: pendingRevenue },
-    { status: 'En Cours', count: inProgressOrders, color: 'bg-blue-500', revenue: inProgressRevenue },
-    { status: 'Livrées', count: deliveredOrders, color: 'bg-green-500', revenue: completedRevenue },
+    { status: 'En Attente', count: pendingOrdersCount, color: 'bg-yellow-500', revenue: pendingRevenue },
+    { status: 'En Cours', count: inProgressOrdersCount, color: 'bg-blue-500', revenue: inProgressRevenue },
+    { status: 'Livrées', count: deliveredOrdersCount, color: 'bg-green-500', revenue: completedRevenue },
   ];
 
-  const lowStockProducts = mockProducts.filter(p => p.stock < 10);
-  const outOfStockProducts = mockProducts.filter(p => p.stock === 0);
-
-  const handleAddProduct = () => {
-    // In a real app, this would call an API
-    console.log('Adding product:', productForm);
-    setShowAddProductModal(false);
-    setProductForm({
-      name: '',
-      description: '',
-      price: '',
-      category: 'fabrics',
-      sizes: '',
-      stock: '',
-      images: '',
-    });
+  // Calculer les jours restants avant le début
+  const getDaysUntilStart = (startDate: string) => {
+    const now = new Date();
+    const start = new Date(startDate);
+    const diffTime = start.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-400">Chargement des données...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-400 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -80,85 +147,241 @@ export const AdminDashboard: React.FC = () => {
         <p className="text-slate-400">Aperçu de vos métriques et performances commerciales</p>
       </div>
 
-      {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="text-center bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-          <DollarSign className="w-8 h-8 text-green-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{totalRevenue.toFixed(2)} DH</p>
-          <p className="text-slate-400">Revenu Total</p>
-          <div className="mt-2 text-xs">
-            <span className="text-green-400">↗ +12.5%</span>
-            <span className="text-slate-500 ml-1">vs mois dernier</span>
+      {/* Commandes à Venir */}
+      <Card className={`${upcomingOrders.length > 0 ? 'bg-gradient-to-br from-orange-500/10 to-red-500/5 border-orange-500/20' : ''}`}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-3">
+            <AlertCircle className={`w-6 h-6 ${upcomingOrders.length > 0 ? 'text-orange-500' : 'text-slate-500'}`} />
+            <h2 className="text-xl font-semibold text-white">Commandes à Venir (7 jours ou moins)</h2>
           </div>
-        </Card>
-
-        <Card className="text-center bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-          <TrendingUp className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{completedRevenue.toFixed(2)} DH</p>
-          <p className="text-slate-400">Revenu Complété</p>
-          <div className="mt-2 text-xs">
-            <span className="text-blue-400">{deliveredOrders} commandes</span>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => loadData(true)}
+              disabled={refreshing}
+              className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Actualiser les données"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            {upcomingOrders.length > 0 && (
+              <span className="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-sm font-medium">
+                {upcomingOrders.length} commande{upcomingOrders.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-        </Card>
-
-        <Card className="text-center bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 border-yellow-500/20">
-          <Clock className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{pendingRevenue.toFixed(2)} DH</p>
-          <p className="text-slate-400">Revenu en Attente</p>
-          <div className="mt-2 text-xs">
-            <span className="text-yellow-400">{pendingOrders} commandes</span>
+        </div>
+        {upcomingOrders.length > 0 ? (
+          <div className="space-y-3">
+            {upcomingOrders.map((order) => {
+              const daysLeft = getDaysUntilStart(order.startDate!);
+              
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => handleOrderClick(order)}
+                  className="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-600/50 transition-colors cursor-pointer border border-slate-600 hover:border-orange-500/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span className="text-white font-semibold">Commande #{order.id}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.status === 'delivered' ? 'text-green-400 bg-green-400/10' :
+                          order.status === 'in-progress' ? 'text-blue-400 bg-blue-400/10' :
+                          'text-yellow-400 bg-yellow-400/10'
+                        }`}>
+                          {order.status === 'pending' ? 'En Attente' : 
+                           order.status === 'in-progress' ? 'En Cours' : 'Livrée'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="flex items-center space-x-2 text-slate-300">
+                          <User className="w-4 h-4" />
+                          <span>{order.clientName || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-slate-300">
+                          <Phone className="w-4 h-4" />
+                          <span>{order.phoneNumber || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-slate-300">
+                          <Calendar className="w-4 h-4" />
+                          <span>Début: {new Date(order.startDate!).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-slate-300">
+                          <Package className="w-4 h-4" />
+                          <span>{order.products.length} article{order.products.length > 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <div className={`text-2xl font-bold mb-1 ${
+                        daysLeft <= 2 ? 'text-red-400' :
+                        daysLeft <= 4 ? 'text-orange-400' :
+                        'text-yellow-400'
+                      }`}>
+                        {daysLeft}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        jour{daysLeft > 1 ? 's' : ''} restant{daysLeft > 1 ? 's' : ''}
+                      </div>
+                      <div className="text-white font-semibold mt-2">
+                        {order.totalAmount.toFixed(2)} DH
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </Card>
-
-        <Card className="text-center bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-          <BarChart3 className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{(totalRevenue / totalOrders).toFixed(2)} DH</p>
-          <p className="text-slate-400">Valeur Moyenne</p>
-          <div className="mt-2 text-xs">
-            <span className="text-purple-400">↗ +8.2%</span>
-            <span className="text-slate-500 ml-1">vs mois dernier</span>
+        ) : (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+            <p className="text-slate-400">Aucune commande à venir dans les 7 prochains jours</p>
+            <p className="text-slate-500 text-sm mt-2">Les commandes avec statut "En Attente" et une date de début proche apparaîtront ici</p>
           </div>
-        </Card>
-      </div>
+        )}
+      </Card>
 
-      {/* Business Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="text-center">
-          <Users className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{totalUsers}</p>
-          <p className="text-slate-400">Total Utilisateurs</p>
-        </Card>
-
-        <Card className="text-center">
-          <Package className="w-8 h-8 text-green-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{totalProducts}</p>
-          <p className="text-slate-400">Articles</p>
-          {lowStockProducts.length > 0 && (
-            <div className="mt-1 text-xs text-yellow-400">
-              {lowStockProducts.length} stock faible
+      {/* Deux listes côte à côte : Commandes En Cours et Commandes Impayées */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Commandes En Cours */}
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <PlayCircle className="w-6 h-6 text-blue-500" />
+              <h2 className="text-xl font-semibold text-white">Commandes En Cours</h2>
+            </div>
+            <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium">
+              {inProgressOrders.length} commande{inProgressOrders.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          {inProgressOrders.length > 0 ? (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {inProgressOrders.map((order) => (
+                <div
+                  key={order.id}
+                  onClick={() => handleOrderClick(order)}
+                  className="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-600/50 transition-colors cursor-pointer border border-slate-600 hover:border-blue-500/50"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-white font-semibold">Commande #{order.id.slice(0, 8)}</span>
+                    </div>
+                    <span className="text-blue-400 font-semibold">{order.totalAmount.toFixed(2)} DH</span>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center space-x-2 text-slate-300">
+                      <User className="w-4 h-4" />
+                      <span>{order.clientName || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-slate-300">
+                      <Phone className="w-4 h-4" />
+                      <span>{order.phoneNumber || 'N/A'}</span>
+                    </div>
+                    {order.finishDate && (
+                      <div className="flex items-center space-x-2 text-slate-300">
+                        <Calendar className="w-4 h-4" />
+                        <span>Fin prévue: {new Date(order.finishDate).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-2 text-slate-300">
+                      <Package className="w-4 h-4" />
+                      <span>{order.products.length} article{order.products.length > 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <PlayCircle className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-slate-400">Aucune commande en cours</p>
             </div>
           )}
         </Card>
 
-        <Card className="text-center">
-          <ShoppingCart className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{totalOrders}</p>
-          <p className="text-slate-400">Total Commandes</p>
-        </Card>
+        {/* Commandes Non Payées Complètement */}
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <DollarSign className="w-6 h-6 text-red-500" />
+              <h2 className="text-xl font-semibold text-white">Paiements Incomplets</h2>
+            </div>
+            <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm font-medium">
+              {unpaidOrders.length} commande{unpaidOrders.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          {unpaidOrders.length > 0 ? (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {unpaidOrders.map((order) => {
+                const totalPaid = calculateTotalPaid(order);
+                const remaining = Math.max(0, order.totalAmount - totalPaid);
+                const paidPercentage = Math.min(100, (totalPaid / order.totalAmount) * 100);
 
-        <Card className="text-center">
-          <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{outOfStockProducts.length}</p>
-          <p className="text-slate-400">Rupture de Stock</p>
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => handleOrderClick(order)}
+                    className="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-600/50 transition-colors cursor-pointer border border-slate-600 hover:border-red-500/50"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-white font-semibold">Commande #{order.id.slice(0, 8)}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.status === 'delivered' ? 'text-green-400 bg-green-400/10' :
+                          order.status === 'in-progress' ? 'text-blue-400 bg-blue-400/10' :
+                          'text-yellow-400 bg-yellow-400/10'
+                        }`}>
+                          {order.status === 'pending' ? 'En Attente' : 
+                           order.status === 'in-progress' ? 'En Cours' : 'Livrée'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center space-x-2 text-slate-300">
+                        <User className="w-4 h-4" />
+                        <span>{order.clientName || 'N/A'}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-400">Payé: {totalPaid.toFixed(2)} DH</span>
+                          <span className="text-red-400">Reste: {remaining.toFixed(2)} DH</span>
+                        </div>
+                        <div className="w-full bg-slate-700 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-green-500 to-yellow-500 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${paidPercentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-center text-xs text-slate-400">
+                          {paidPercentage.toFixed(0)}% payé
+                        </div>
+                      </div>
+                      {order.paymentSchedule && order.paymentSchedule.length > 0 && (
+                        <div className="text-xs text-slate-400">
+                          {order.paymentSchedule.filter(p => p.status === 'pending' || p.status === 'overdue').length} paiement{order.paymentSchedule.filter(p => p.status === 'pending' || p.status === 'overdue').length > 1 ? 's' : ''} en attente
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <DollarSign className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+              <p className="text-slate-400">Toutes les commandes sont payées</p>
+            </div>
+          )}
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
+        {/* Graphique du Revenu */}
         <Card>
           <h2 className="text-xl font-semibold text-white mb-6">Tendance du Revenu Mensuel</h2>
           <div className="space-y-4">
-            {monthlyRevenue.map((month, index) => {
+            {monthlyRevenue.map((month) => {
               const maxRevenue = Math.max(...monthlyRevenue.map(m => m.revenue));
               const percentage = (month.revenue / maxRevenue) * 100;
               
@@ -185,9 +408,9 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </Card>
 
-        {/* Order Status with Revenue */}
+        {/* Statut des Commandes et Revenu */}
         <Card>
-          <h2 className="text-xl font-semibold text-white mb-6">Order Status & Revenue</h2>
+          <h2 className="text-xl font-semibold text-white mb-6">Statut des Commandes et Revenu</h2>
           <div className="space-y-4">
             {orderStatusData.map((item) => (
               <div key={item.status} className="flex items-center justify-between">
@@ -211,298 +434,200 @@ export const AdminDashboard: React.FC = () => {
             ))}
           </div>
         </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <h2 className="text-xl font-semibold text-white mb-6">Recent Activity</h2>
-          <div className="space-y-4">
-            {mockOrders.slice(0, 5).map((order) => (
-              <div key={order.id} className="flex items-center space-x-3 p-3 bg-slate-700 rounded-lg">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-white text-sm">
-                    Commande #{order.id} - {order.totalAmount.toFixed(2)} DH
-                  </p>
-                  <p className="text-slate-400 text-xs">
-                    {new Date(order.createdAt).toLocaleString()}
-                  </p>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  order.status === 'delivered' ? 'text-green-400 bg-green-400/10' :
-                  order.status === 'in-progress' ? 'text-blue-400 bg-blue-400/10' :
-                  'text-yellow-400 bg-yellow-400/10'
-                }`}>
-                  {order.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Inventory Alerts */}
-        <Card>
-          <h2 className="text-xl font-semibold text-white mb-6">Inventory Alerts</h2>
-          <div className="space-y-3">
-            {outOfStockProducts.length > 0 && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="text-red-400 font-medium">Rupture de Stock</span>
-                </div>
-                {outOfStockProducts.slice(0, 3).map(product => (
-                  <div key={product.id} className="text-sm text-slate-300">
-                    {product.name}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {lowStockProducts.length > 0 && (
-              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Clock className="w-4 h-4 text-yellow-400" />
-                  <span className="text-yellow-400 font-medium">Stock Faible</span>
-                </div>
-                {lowStockProducts.slice(0, 3).map(product => (
-                  <div key={product.id} className="text-sm text-slate-300 flex justify-between">
-                    <span>{product.name}</span>
-                    <span className="text-yellow-400">{product.stock} restant</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {outOfStockProducts.length === 0 && lowStockProducts.length === 0 && (
-              <div className="text-center py-4">
-                <Package className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                <p className="text-green-400">All products in stock</p>
-              </div>
-            )}
-          </div>
-        </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <h2 className="text-xl font-semibold text-white mb-6">Actions Rapides</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div 
-            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-            onClick={() => setShowAddProductModal(true)}
-          >
-            <Package className="w-8 h-8 text-blue-500 mb-2" />
-            <h3 className="text-white font-semibold">Add New Product</h3>
-            <p className="text-slate-400 text-sm">Create a new product listing</p>
-          </div>
-
-          <div 
-            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-            onClick={() => setShowPendingOrdersModal(true)}
-          >
-            <Clock className="w-8 h-8 text-yellow-500 mb-2" />
-            <h3 className="text-white font-semibold">Commandes en Attente</h3>
-            <p className="text-slate-400 text-sm">{pendingOrders} commandes nécessitent votre attention</p>
-          </div>
-
-          <div 
-            className="p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-            onClick={() => setShowAnalyticsModal(true)}
-          >
-            <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
-            <h3 className="text-white font-semibold">Analytics</h3>
-            <p className="text-slate-400 text-sm">View detailed reports</p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Add Product Modal */}
+      {/* Modal de Détails de Commande */}
       <Modal
-        isOpen={showAddProductModal}
-        onClose={() => setShowAddProductModal(false)}
-        title="Ajouter un Nouvel Article"
-        size="lg"
+        isOpen={showOrderDetailsModal}
+        onClose={() => setShowOrderDetailsModal(false)}
+        title={`Détails de la Commande #${selectedOrder?.id || ''}`}
+        size="xl"
       >
-        <div className="space-y-4">
-          <Input
-            label="Nom de l'Article"
-            value={productForm.name}
-            onChange={(value) => setProductForm(prev => ({ ...prev, name: value }))}
-            placeholder="Entrez le nom de l'article"
-            required
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={productForm.description}
-              onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Entrez la description de l'article"
-              rows={3}
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Prix"
-              type="number"
-              step="0.01"
-              value={productForm.price}
-              onChange={(value) => setProductForm(prev => ({ ...prev, price: value }))}
-              placeholder="0.00"
-              required
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Catégorie
-              </label>
-              <select
-                value={productForm.category}
-                onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="fabrics">Fabrics</option>
-                <option value="clothes">Clothes</option>
-                <option value="kits">Sewing Kits</option>
-                <option value="threads">Threads</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Tailles (séparées par des virgules)"
-              value={productForm.sizes}
-              onChange={(value) => setProductForm(prev => ({ ...prev, sizes: value }))}
-              placeholder="XS, S, M, L, XL"
-            />
-
-            <Input
-              label="Quantité en Stock"
-              type="number"
-              value={productForm.stock}
-              onChange={(value) => setProductForm(prev => ({ ...prev, stock: value }))}
-              placeholder="0"
-              required
-            />
-          </div>
-
-          <Input
-            label="URLs des Images (séparées par des virgules)"
-            value={productForm.images}
-            onChange={(value) => setProductForm(prev => ({ ...prev, images: value }))}
-            placeholder="https://exemple.com/image1.jpg, https://exemple.com/image2.jpg"
-          />
-
-          <div className="flex space-x-3 pt-4">
-            <Button onClick={handleAddProduct}>
-              Ajouter l'Article
-            </Button>
-            <Button variant="secondary" onClick={() => setShowAddProductModal(false)}>
-              Annuler
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Pending Orders Modal */}
-      <Modal
-        isOpen={showPendingOrdersModal}
-        onClose={() => setShowPendingOrdersModal(false)}
-        title="Commandes en Attente"
-        size="lg"
-      >
-        <div className="space-y-4">
-          {mockOrders.filter(o => o.status === 'pending').map((order) => {
-            const user = mockUsers.find(u => u.id === order.userId);
-            return (
-              <div key={order.id} className="p-4 bg-slate-700 rounded-lg">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="text-white font-semibold">Commande #{order.id}</h4>
-                    <p className="text-slate-400 text-sm">{user?.name} - {user?.email}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-semibold">{order.totalAmount.toFixed(2)} DH</p>
-                    <p className="text-slate-400 text-sm">
-                      {new Date(order.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+        {selectedOrder && (
+          <div className="space-y-6">
+            {/* Informations Client */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                <User className="w-5 h-5 mr-2" />
+                Informations Client
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-slate-400">Nom:</span>
+                  <span className="text-white ml-2 font-medium">
+                    {selectedOrder.clientName || 'N/A'}
+                  </span>
                 </div>
-                <div className="space-y-1 mb-3">
-                  {order.products.map((product, idx) => (
-                    <div key={idx} className="text-sm text-slate-300">
-                      {product.productName} (x{product.quantity}) - {product.size}
+                <div>
+                  <span className="text-slate-400">Téléphone:</span>
+                  <span className="text-white ml-2 font-medium">
+                    {selectedOrder.phoneNumber || 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Dates et Statut */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                <Calendar className="w-5 h-5 mr-2" />
+                Planning et Statut
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                {selectedOrder.startDate && (
+                  <div>
+                    <span className="text-slate-400">Date de Début:</span>
+                    <span className="text-white ml-2 font-medium">
+                      {new Date(selectedOrder.startDate).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                )}
+                {selectedOrder.finishDate && (
+                  <div>
+                    <span className="text-slate-400">Date de Fin:</span>
+                    <span className="text-white ml-2 font-medium">
+                      {new Date(selectedOrder.finishDate).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-slate-400">Statut:</span>
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedOrder.status === 'delivered' ? 'text-green-400 bg-green-400/10' :
+                    selectedOrder.status === 'in-progress' ? 'text-blue-400 bg-blue-400/10' :
+                    'text-yellow-400 bg-yellow-400/10'
+                  }`}>
+                    {selectedOrder.status === 'pending' ? 'En Attente' : 
+                     selectedOrder.status === 'in-progress' ? 'En Cours' : 'Livrée'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400">Créé le:</span>
+                  <span className="text-white ml-2 font-medium">
+                    {new Date(selectedOrder.createdAt).toLocaleDateString('fr-FR')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Produits */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                <Package className="w-5 h-5 mr-2" />
+                Articles Commandés
+              </h3>
+              <div className="space-y-2">
+                {selectedOrder.products.map((product, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-800/50 rounded">
+                    <div>
+                      <p className="text-white font-medium">{product.productName}</p>
+                      <p className="text-slate-400 text-sm">
+                        Taille: {product.size} • Quantité: {product.quantity}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white font-semibold">{(product.price * product.quantity).toFixed(2)} DH</p>
+                      <p className="text-slate-400 text-sm">{product.price.toFixed(2)} DH / unité</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Informations de Paiement */}
+            <div className="p-4 bg-slate-700/50 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-3">Informations de Paiement</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Montant Total:</span>
+                  <span className="text-white font-semibold">{selectedOrder.totalAmount.toFixed(2)} DH</span>
+                </div>
+                {selectedOrder.downPayment !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Acompte:</span>
+                    <span className="text-white font-semibold">{selectedOrder.downPayment.toFixed(2)} DH</span>
+                  </div>
+                )}
+                {selectedOrder.advanceMoney !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Avance:</span>
+                    <span className="text-white font-semibold">{selectedOrder.advanceMoney.toFixed(2)} DH</span>
+                  </div>
+                )}
+                {selectedOrder.paymentMonths !== undefined && selectedOrder.paymentMonths > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Échéancier:</span>
+                    <span className="text-white font-semibold">{selectedOrder.paymentMonths} mois</span>
+                  </div>
+                )}
+                {selectedOrder.invoiceReference && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Référence Facture:</span>
+                    <span className="text-white font-medium">{selectedOrder.invoiceReference}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Items Ponge */}
+            {selectedOrder.pongeItems && selectedOrder.pongeItems.length > 0 && (
+              <div className="p-4 bg-slate-700/50 rounded-lg">
+                <h3 className="text-lg font-semibold text-white mb-3">Articles Ponge</h3>
+                <div className="space-y-2">
+                  {selectedOrder.pongeItems.map((item, idx) => (
+                    <div key={item.id} className="p-2 bg-slate-800/50 rounded text-sm">
+                      <span className="text-slate-400">#{idx + 1}:</span>
+                      <span className="text-white ml-2">{item.description}</span>
                     </div>
                   ))}
                 </div>
-                <Button size="sm">
-                  Start Processing
-                </Button>
               </div>
-            );
-          })}
-          {mockOrders.filter(o => o.status === 'pending').length === 0 && (
-            <div className="text-center py-8">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <p className="text-slate-400">No pending orders</p>
-            </div>
-          )}
-        </div>
-      </Modal>
+            )}
 
-      {/* Analytics Modal */}
-      <Modal
-        isOpen={showAnalyticsModal}
-        onClose={() => setShowAnalyticsModal(false)}
-        title="Aperçu des Analyses"
-        size="xl"
-      >
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-slate-700 rounded-lg">
-              <h4 className="text-white font-semibold">Conversion Rate</h4>
-              <p className="text-2xl font-bold text-green-400">68.5%</p>
-              <p className="text-slate-400 text-sm">Orders vs Visitors</p>
-            </div>
-            <div className="text-center p-4 bg-slate-700 rounded-lg">
-              <h4 className="text-white font-semibold">Customer Retention</h4>
-              <p className="text-2xl font-bold text-blue-400">42.3%</p>
-              <p className="text-slate-400 text-sm">Repeat Customers</p>
-            </div>
-            <div className="text-center p-4 bg-slate-700 rounded-lg">
-              <h4 className="text-white font-semibold">Growth Rate</h4>
-              <p className="text-2xl font-bold text-purple-400">+15.2%</p>
-              <p className="text-slate-400 text-sm">Month over Month</p>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-white font-semibold mb-4">Top Selling Products</h4>
-            <div className="space-y-3">
-              {mockProducts.slice(0, 5).map((product, index) => (
-                <div key={product.id} className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-slate-400 font-mono">#{index + 1}</span>
-                    <div>
-                      <p className="text-white font-medium">{product.name}</p>
-                      <p className="text-slate-400 text-sm">{product.price.toFixed(2)} DH</p>
+            {/* Matériaux de Référence */}
+            {selectedOrder.referenceMaterials && selectedOrder.referenceMaterials.length > 0 && (
+              <div className="p-4 bg-slate-700/50 rounded-lg">
+                <h3 className="text-lg font-semibold text-white mb-3">Matériaux de Référence</h3>
+                <div className="space-y-2">
+                  {selectedOrder.referenceMaterials.map((material) => (
+                    <div key={material.id} className="flex justify-between p-2 bg-slate-800/50 rounded text-sm">
+                      <div>
+                        <p className="text-white font-medium">{material.name}</p>
+                        <p className="text-slate-400">{material.description}</p>
+                      </div>
+                      <span className="text-white">Qté: {material.quantity}</span>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-semibold">{Math.floor(Math.random() * 50) + 10} vendus</p>
-                    <p className="text-green-400 text-sm">
-                      {((Math.floor(Math.random() * 50) + 10) * product.price).toFixed(2)} DH
-                    </p>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Images */}
+            {selectedOrder.images && selectedOrder.images.length > 0 && (
+              <div className="p-4 bg-slate-700/50 rounded-lg">
+                <h3 className="text-lg font-semibold text-white mb-3">Images Attachées</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {selectedOrder.images.map((image, idx) => (
+                    <img
+                      key={idx}
+                      src={image}
+                      alt={`Image ${idx + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-slate-600"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </Modal>
     </div>
   );

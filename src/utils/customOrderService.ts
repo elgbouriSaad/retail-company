@@ -223,3 +223,108 @@ export const deleteCustomOrder = async (orderId: string): Promise<void> => {
   }
 };
 
+/**
+ * Récupérer les commandes à venir (7 jours ou moins) avec le statut 'pending'
+ */
+export const fetchUpcomingOrders = async (): Promise<Order[]> => {
+  try {
+    const now = new Date();
+    const weekFromNow = new Date();
+    weekFromNow.setDate(now.getDate() + 7);
+
+    const { data, error } = await customOrders()
+      .select('*')
+      .eq('status', 'PENDING')
+      .gte('start_date', now.toISOString())
+      .lte('start_date', weekFromNow.toISOString())
+      .order('start_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching upcoming orders', error);
+      throw error;
+    }
+
+    return (data as DbCustomOrderRow[]).map(mapRowToOrder);
+  } catch (error) {
+    console.error('Error fetching upcoming orders:', error);
+    throw error;
+  }
+};
+
+/**
+ * Récupérer les commandes en cours
+ */
+export const fetchInProgressOrders = async (): Promise<Order[]> => {
+  try {
+    const { data, error } = await customOrders()
+      .select('*')
+      .eq('status', 'IN_PROGRESS')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching in-progress orders', error);
+      throw error;
+    }
+
+    return (data as DbCustomOrderRow[]).map(mapRowToOrder);
+  } catch (error) {
+    console.error('Error fetching in-progress orders:', error);
+    throw error;
+  }
+};
+
+/**
+ * Calculer le montant total payé pour une commande
+ * IMPORTANT: On calcule uniquement les paiements RÉELLEMENT effectués (status='paid')
+ */
+export const calculateTotalPaid = (order: Order): number => {
+  let totalPaid = 0;
+  
+  // Si on a un échéancier de paiement, on compte uniquement les paiements marqués comme 'paid'
+  if (order.paymentSchedule && order.paymentSchedule.length > 0) {
+    totalPaid = order.paymentSchedule
+      .filter(installment => installment.status === 'paid')
+      .reduce((sum, installment) => sum + (installment.paidAmount || installment.amount), 0);
+    
+    console.log(`[calculateTotalPaid] Order ${order.id}: ${order.paymentSchedule.filter(i => i.status === 'paid').length}/${order.paymentSchedule.length} installments paid = ${totalPaid} DH`);
+  } else {
+    // Si pas d'échéancier, on utilise l'acompte et l'avance
+    // MAIS ATTENTION: il faut vérifier si ces montants ne sont pas déjà le total
+    const downPayment = order.downPayment || 0;
+    const advanceMoney = order.advanceMoney || 0;
+    totalPaid = downPayment + advanceMoney;
+    
+    console.log(`[calculateTotalPaid] Order ${order.id}: No schedule - downPayment=${downPayment}, advanceMoney=${advanceMoney}, total=${totalPaid}`);
+  }
+  
+  console.log(`[calculateTotalPaid] Order ${order.id}: TOTAL PAID=${totalPaid} / TOTAL ORDER=${order.totalAmount}`);
+  return totalPaid;
+};
+
+/**
+ * Récupérer les commandes qui ne sont pas complètement payées
+ */
+export const fetchUnpaidOrders = async (): Promise<Order[]> => {
+  try {
+    const { data, error } = await customOrders()
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching unpaid orders', error);
+      throw error;
+    }
+
+    // Filtrer les commandes qui ne sont pas complètement payées
+    const orders = (data as DbCustomOrderRow[]).map(mapRowToOrder);
+    
+    return orders.filter(order => {
+      const totalPaid = calculateTotalPaid(order);
+      return totalPaid < order.totalAmount;
+    });
+  } catch (error) {
+    console.error('Error fetching unpaid orders:', error);
+    throw error;
+  }
+};
+
