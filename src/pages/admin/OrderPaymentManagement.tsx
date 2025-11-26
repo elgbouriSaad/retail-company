@@ -16,14 +16,13 @@ import {
   getNextPaymentDue,
   getOverdueInstallments,
   calculateDaysOverdue,
-  recordPayment
 } from '../../utils/paymentUtils';
 import {
   fetchCustomOrders,
   createCustomOrder,
   updateCustomOrderStatus,
   deleteCustomOrder,
-  updateCustomOrderSchedule,
+  recordCustomOrderPayment,
 } from '../../utils/customOrderService';
 import { validateImageFiles } from '../../utils/uploadService';
 
@@ -551,32 +550,22 @@ export const OrderPaymentManagement: React.FC = () => {
     try {
       setIsRecordingPayment(true);
 
-      const totalContractAmount = selectedOrderForPayment.totalAmount || 0;
-
-      const updatedSchedule = recordPayment(
-        selectedOrderForPayment.paymentSchedule || [],
-        selectedInstallment.id,
-        paymentForm.amount,
-        paymentForm.method,
-        paymentForm.date,
-        paymentForm.notes
-      );
-
-      const allPaid = updatedSchedule.every(inst => inst.status === 'paid');
-      const totalPaidFromSchedule = calculateTotalPaid(updatedSchedule);
-      const fullyPaid =
-        totalContractAmount > 0 && totalPaidFromSchedule >= totalContractAmount;
-      const newStatus = (allPaid || fullyPaid) ? 'delivered' : selectedOrderForPayment.status;
-      const willBeDelivered =
-        newStatus === 'delivered' && selectedOrderForPayment.status !== 'delivered';
-
-      const updatedOrder = await updateCustomOrderSchedule(
-        selectedOrderForPayment.id,
-        updatedSchedule,
-        willBeDelivered ? newStatus : undefined
-      );
+      const updatedOrder = await recordCustomOrderPayment({
+        orderId: selectedOrderForPayment.id,
+        installmentId: selectedInstallment.id,
+        amount: paymentForm.amount,
+        method: paymentForm.method,
+        date: paymentForm.date,
+        notes: paymentForm.notes,
+      });
 
       const normalizedOrder = normalizeOrder(updatedOrder);
+      const totalContractAmount = normalizedOrder.totalAmount || 0;
+      const totalPaidFromSchedule = normalizedOrder.paymentSchedule
+        ? calculateTotalPaid(normalizedOrder.paymentSchedule)
+        : 0;
+      const remaining = Math.max(0, totalContractAmount - totalPaidFromSchedule);
+
       setOrders(prev =>
         prev.map(order =>
           order.id === normalizedOrder.id ? normalizedOrder : order
@@ -584,7 +573,7 @@ export const OrderPaymentManagement: React.FC = () => {
       );
 
       let successMsg = `✓ Paiement enregistré avec succès !\n\n`;
-      successMsg += `Client: ${selectedOrderForPayment.clientName}\n`;
+      successMsg += `Client: ${normalizedOrder.clientName}\n`;
       successMsg += `Montant: ${paymentForm.amount.toFixed(2)} DH\n`;
       successMsg += `Méthode: ${
         paymentForm.method === 'cash' ? 'Espèces' :
@@ -595,11 +584,11 @@ export const OrderPaymentManagement: React.FC = () => {
       }\n`;
       successMsg += `Date: ${new Date(paymentForm.date).toLocaleDateString('fr-FR')}\n\n`;
       successMsg += `💰 Total payé: ${totalPaidFromSchedule.toFixed(2)} DH\n`;
-      successMsg += `📉 Restant: ${Math.max(0, totalContractAmount - totalPaidFromSchedule).toFixed(2)} DH\n`;
+      successMsg += `📉 Restant: ${remaining.toFixed(2)} DH\n`;
 
-      if (willBeDelivered) {
+      if (normalizedOrder.status === 'delivered') {
         successMsg += `\n\n🚚 La commande est maintenant marquée comme livrée.`;
-      } else if (totalContractAmount - totalPaidFromSchedule <= 0) {
+      } else if (remaining <= 0) {
         successMsg += `\n\n🎉 Toutes les échéances ont été réglées.`;
       }
 

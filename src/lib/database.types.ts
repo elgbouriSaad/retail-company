@@ -166,9 +166,6 @@ export interface Database {
           id: string
           client_name: string
           phone_number: string
-          ponge_items: Json
-          reference_materials: Json
-          images: Json | null
           start_date: string | null
           finish_date: string
           down_payment: number
@@ -176,7 +173,6 @@ export interface Database {
           payment_months: number
           total_amount: number
           status: 'PENDING' | 'IN_PROGRESS' | 'DELIVERED' | 'CANCELLED'
-          payment_schedule: Json | null
           created_at: string
           updated_at: string
         }
@@ -184,9 +180,6 @@ export interface Database {
           id?: string
           client_name: string
           phone_number: string
-          ponge_items?: Json
-          reference_materials?: Json
-          images?: Json | null
           start_date?: string | null
           finish_date: string
           down_payment: number
@@ -194,7 +187,6 @@ export interface Database {
           payment_months: number
           total_amount: number
           status?: 'PENDING' | 'IN_PROGRESS' | 'DELIVERED' | 'CANCELLED'
-          payment_schedule?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -202,9 +194,6 @@ export interface Database {
           id?: string
           client_name?: string
           phone_number?: string
-          ponge_items?: Json
-          reference_materials?: Json
-          images?: Json | null
           start_date?: string | null
           finish_date?: string
           down_payment?: number
@@ -212,9 +201,159 @@ export interface Database {
           payment_months?: number
           total_amount?: number
           status?: 'PENDING' | 'IN_PROGRESS' | 'DELIVERED' | 'CANCELLED'
-          payment_schedule?: Json | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      custom_order_items: {
+        Row: {
+          id: string
+          custom_order_id: string
+          description: string
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          custom_order_id: string
+          description: string
+          position?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          custom_order_id?: string
+          description?: string
+          position?: number
+          created_at?: string
+        }
+      }
+      custom_order_reference_materials: {
+        Row: {
+          id: string
+          custom_order_id: string
+          name: string
+          description: string | null
+          quantity: number
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          custom_order_id: string
+          name: string
+          description?: string | null
+          quantity?: number
+          position?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          custom_order_id?: string
+          name?: string
+          description?: string | null
+          quantity?: number
+          position?: number
+          created_at?: string
+        }
+      }
+      custom_order_images: {
+        Row: {
+          id: string
+          custom_order_id: string
+          url: string
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          custom_order_id: string
+          url: string
+          position?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          custom_order_id?: string
+          url?: string
+          position?: number
+          created_at?: string
+        }
+      }
+      custom_order_installments: {
+        Row: {
+          id: string
+          custom_order_id: string
+          due_date: string
+          amount: number
+          status: 'PENDING' | 'PAID' | 'OVERDUE'
+          paid_date: string | null
+          paid_amount: number | null
+          method: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE' | null
+          notes: string | null
+          position: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          custom_order_id: string
+          due_date: string
+          amount: number
+          status?: 'PENDING' | 'PAID' | 'OVERDUE'
+          paid_date?: string | null
+          paid_amount?: number | null
+          method?: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE' | null
+          notes?: string | null
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          custom_order_id?: string
+          due_date?: string
+          amount?: number
+          status?: 'PENDING' | 'PAID' | 'OVERDUE'
+          paid_date?: string | null
+          paid_amount?: number | null
+          method?: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE' | null
+          notes?: string | null
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      custom_order_payments: {
+        Row: {
+          id: string
+          custom_order_id: string
+          installment_id: string | null
+          amount: number
+          method: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE'
+          paid_at: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          custom_order_id: string
+          installment_id?: string | null
+          amount: number
+          method: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE'
+          paid_at?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          custom_order_id?: string
+          installment_id?: string | null
+          amount?: number
+          method?: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE'
+          paid_at?: string
+          notes?: string | null
+          created_at?: string
         }
       }
       contact_messages: {
@@ -449,6 +588,8 @@ export interface Database {
       payment_method: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE'
       discount_type: 'PERCENTAGE' | 'AMOUNT'
       installment_status: 'PAID' | 'PENDING' | 'OVERDUE'
+      custom_order_installment_status: 'PENDING' | 'PAID' | 'OVERDUE'
+      custom_order_payment_method: 'CASH' | 'CARD' | 'CHECK' | 'TRANSFER' | 'MOBILE'
     }
   }
 }
