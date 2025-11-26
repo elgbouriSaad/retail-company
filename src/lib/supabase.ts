@@ -348,19 +348,10 @@ export type Enums<T extends keyof Database['public']['Enums']> =
 // Convenience type exports
 export type User = Tables<'users'>;
 export type Product = Tables<'products'>;
-export type Order = Tables<'orders'>;
-export type OrderItem = Tables<'order_items'>;
 export type CustomOrder = Tables<'custom_orders'>;
-export type Invoice = Tables<'invoices'>;
-export type Payment = Tables<'payments'>;
-export type ContactMessage = Tables<'contact_messages'>;
-export type Setting = Tables<'settings'>;
 
 export type UserRole = Enums<'user_role'>;
 export type ProductCategory = Enums<'product_category'>;
 export type OrderStatus = Enums<'order_status'>;
-export type MessageStatus = Enums<'message_status'>;
-export type InvoiceStatus = Enums<'invoice_status'>;
 export type PaymentMethod = Enums<'payment_method'>;
-export type DiscountType = Enums<'discount_type'>;
 

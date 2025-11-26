@@ -4,7 +4,6 @@ import { Card } from '../../components/common/Card';
 import { Modal } from '../../components/common/Modal';
 import { Order } from '../../types';
 import { fetchUpcomingOrders, fetchInProgressOrders, fetchUnpaidOrders, calculateTotalPaid, fetchCustomOrders } from '../../utils/customOrderService';
-import { fetchAllOrders, fetchInProgressRegularOrders } from '../../utils/orderService';
 
 export const AdminDashboard: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -33,16 +32,11 @@ export const AdminDashboard: React.FC = () => {
       setError(null);
       
       // Charger toutes les données en parallèle
-      const [upcoming, customInProgress, regularInProgress, allCustomOrders, allRegularOrders] = await Promise.all([
+      const [upcoming, customInProgress, allCustomOrders] = await Promise.all([
         fetchUpcomingOrders(),
         fetchInProgressOrders(),
-        fetchInProgressRegularOrders(),
-        fetchCustomOrders(),
-        fetchAllOrders()
+        fetchCustomOrders()
       ]);
-      
-      // Combiner les commandes en cours
-      const combinedInProgress = [...customInProgress, ...regularInProgress];
       
       // Filtrer toutes les commandes personnalisées non payées
       const unpaidCustomOrders = allCustomOrders.filter(order => {
@@ -54,9 +48,9 @@ export const AdminDashboard: React.FC = () => {
       console.log(`Total custom orders: ${allCustomOrders.length}, Unpaid: ${unpaidCustomOrders.length}`);
       
       setUpcomingOrders(upcoming);
-      setInProgressOrders(combinedInProgress);
+      setInProgressOrders(customInProgress);
       setUnpaidOrders(unpaidCustomOrders);
-      setAllOrders([...allCustomOrders, ...allRegularOrders]);
+      setAllOrders(allCustomOrders);
     } catch (err) {
       console.error('Erreur lors du chargement des données:', err);
       setError('Erreur lors du chargement des données. Veuillez réessayer.');

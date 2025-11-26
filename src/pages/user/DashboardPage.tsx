@@ -1,19 +1,37 @@
-import React from 'react';
-import { Package, Truck, Clock, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Package, Truck, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockOrders } from '../../data/mockData';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
+import { fetchCustomOrders } from '../../utils/customOrderService';
+import { Order } from '../../types';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const userOrders = mockOrders.filter(order => order.userId === user?.id);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadOrders();
+  }, []);
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const allOrders = await fetchCustomOrders();
+      setOrders(allOrders);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const orderStats = {
-    total: userOrders.length,
-    delivered: userOrders.filter(o => o.status === 'delivered').length,
-    inProgress: userOrders.filter(o => o.status === 'in-progress').length,
-    pending: userOrders.filter(o => o.status === 'pending').length,
+    total: orders.length,
+    delivered: orders.filter(o => o.status === 'delivered').length,
+    inProgress: orders.filter(o => o.status === 'in-progress').length,
+    pending: orders.filter(o => o.status === 'pending').length,
   };
 
   const getStatusIcon = (status: string) => {
@@ -42,11 +60,19 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.name}!</h1>
-        <p className="text-slate-400">Here's an overview of your orders and activity.</p>
+        <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.name || 'User'}!</h1>
+        <p className="text-slate-400">Here's an overview of all custom orders.</p>
       </div>
 
       {/* Summary Cards */}
@@ -83,11 +109,11 @@ export const DashboardPage: React.FC = () => {
           <Button size="sm" variant="ghost">View All</Button>
         </div>
 
-        {userOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="text-center py-8">
             <Package className="w-12 h-12 text-slate-500 mx-auto mb-4" />
             <p className="text-slate-400">No orders yet</p>
-            <p className="text-slate-500 text-sm">Start shopping to see your orders here</p>
+            <p className="text-slate-500 text-sm">Custom orders will appear here</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -95,25 +121,20 @@ export const DashboardPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-700">
                   <th className="text-left py-3 text-slate-300 font-medium">Order ID</th>
-                  <th className="text-left py-3 text-slate-300 font-medium">Products</th>
+                  <th className="text-left py-3 text-slate-300 font-medium">Client</th>
                   <th className="text-left py-3 text-slate-300 font-medium">Status</th>
-                  <th className="text-left py-3 text-slate-300 font-medium">Date</th>
+                  <th className="text-left py-3 text-slate-300 font-medium">Finish Date</th>
                   <th className="text-right py-3 text-slate-300 font-medium">Total</th>
                   <th className="text-right py-3 text-slate-300 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {userOrders.map((order) => (
+                {orders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-700/50">
-                    <td className="py-4 text-white font-mono">#{order.id}</td>
+                    <td className="py-4 text-white font-mono">#{order.id.slice(-8)}</td>
                     <td className="py-4">
-                      <div className="space-y-1">
-                        {order.products.map((product, idx) => (
-                          <div key={idx} className="text-slate-300 text-sm">
-                            {product.productName} (x{product.quantity})
-                          </div>
-                        ))}
-                      </div>
+                      <div className="text-white font-semibold">{order.clientName}</div>
+                      <div className="text-slate-400 text-sm">{order.phoneNumber}</div>
                     </td>
                     <td className="py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
@@ -122,13 +143,13 @@ export const DashboardPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-4 text-slate-300">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      {new Date(order.finishDate).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="py-4 text-right text-white font-semibold">
-                      ${order.totalAmount.toFixed(2)}
+                      {order.totalAmount.toFixed(2)} DH
                     </td>
                     <td className="py-4 text-right">
-                      <Button size="sm" variant="ghost">
+                      <Button size="sm" variant="ghost" onClick={() => alert(`Order Details:\nClient: ${order.clientName}\nPhone: ${order.phoneNumber}\nTotal: ${order.totalAmount} DH`)}>
                         View Details
                       </Button>
                     </td>

@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Star, ShoppingCart } from 'lucide-react';
-import { categories } from '../../data/mockData';
+import { Search, Filter, Star } from 'lucide-react';
 import { Product } from '../../types';
-import { useCart } from '../../context/CartContext';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { fetchProducts } from '../../utils/productService';
+
+// Product categories
+const categories = [
+  { id: 'all', name: 'Tous les Articles' },
+  { id: 'FABRICS', name: 'Tissus' },
+  { id: 'CLOTHES', name: 'Vêtements' },
+  { id: 'KITS', name: 'Kits de Couture' },
+  { id: 'THREADS', name: 'Fils' },
+  { id: 'ACCESSORIES', name: 'Accessoires' },
+];
 
 export const ShopPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -14,7 +22,6 @@ export const ShopPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
-  const { addToCart } = useCart();
 
   // Load products from database
   useEffect(() => {
@@ -42,18 +49,8 @@ export const ShopPage: React.FC = () => {
     return matchesSearch && matchesCategory && matchesPrice && product.availability;
   });
 
-  const handleAddToCart = (product: Product) => {
-    addToCart(product, 1, product.sizes[0]);
-    alert(`${product.name} added to cart!`);
-  };
-
   const handleViewDetails = (product: Product) => {
-    alert(`Viewing details for ${product.name}. This would open a detailed product page.`);
-  };
-
-  const handleQuickOrder = (product: Product) => {
-    addToCart(product, 1, product.sizes[0]);
-    alert(`${product.name} added to cart and ready for quick checkout!`);
+    alert(`Product: ${product.name}\nPrice: ${product.price} DH\nDescription: ${product.description}\n\nContact admin to place an order.`);
   };
 
   return (
@@ -151,15 +148,9 @@ export const ShopPage: React.FC = () => {
                 <Button
                   size="sm"
                   className="flex-1"
-                  onClick={() => handleAddToCart(product)}
-                  icon={ShoppingCart}
+                  onClick={() => handleViewDetails(product)}
                 >
-                  Add to Cart
-                </Button>
-                <Button size="sm" variant="ghost">
-                  <Button size="sm" variant="ghost" onClick={() => handleViewDetails(product)}>
-                    View Details
-                  </Button>
+                  View Details
                 </Button>
               </div>
             </div>

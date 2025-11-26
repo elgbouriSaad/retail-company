@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Send, Phone, Mail, MapPin } from 'lucide-react';
-import { mockProducts } from '../../data/mockData';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';

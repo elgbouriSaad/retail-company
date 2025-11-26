@@ -75,20 +75,8 @@ export interface OrderItem {
   price: number;
 }
 
-export interface CartItem {
-  product: Product;
-  quantity: number;
-  size: string;
-}
-
-export interface ContactMessage {
-  id: string;
-  name: string;
-  email: string;
-  message: string;
-  productId?: string;
-  createdAt: string;
-}
+// CartItem interface removed - cart functionality not used
+// ContactMessage interface removed - contact_messages table deleted
 
 export interface OrderForm {
   clientName: string;
@@ -115,41 +103,5 @@ export interface ReferenceMaterial {
   quantity: number;
 }
 
-export interface Invoice {
-  id: string;
-  reference: string;
-  clientId: string;
-  clientName: string;
-  date: string;
-  items: InvoiceItem[];
-  subtotal: number;
-  discountType?: 'percentage' | 'amount';
-  discountValue?: number;
-  total: number;
-  amountPaid: number;
-  amountDue: number;
-  status: 'paid' | 'partial' | 'unpaid';
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface InvoiceItem {
-  id?: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-  category: 'consultation' | 'fabric' | 'labor' | 'accessories' | 'other';
-}
-
-export interface Payment {
-  id: string;
-  invoiceId: string;
-  method: 'cash' | 'card' | 'check' | 'transfer' | 'mobile';
-  amount: number;
-  date: string;
-  reference?: string;
-  notes?: string;
-  createdAt: string;
-}
+// Invoice, InvoiceItem, and Payment interfaces removed - tables were deleted
+// Payment functionality is now handled through custom_order_payments

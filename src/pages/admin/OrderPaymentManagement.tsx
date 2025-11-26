@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Package, Search, Filter, Truck, CheckCircle, Clock, X, Plus, Upload, 
   Trash2, Calendar, ChevronDown, ChevronUp, DollarSign, AlertTriangle, CreditCard,
-  Phone, Scissors, RefreshCw, Loader2
+  Phone, Scissors, RefreshCw, Loader2, Eye
 } from 'lucide-react';
 import { OrderForm, PongeItem, ReferenceMaterial, Order, PaymentInstallment } from '../../types';
 import { Card } from '../../components/common/Card';
@@ -1103,6 +1103,51 @@ export const OrderPaymentManagement: React.FC = () => {
                                         <span>{material.name}</span>
                                         <span className="text-slate-400">Qté: {material.quantity}</span>
                                       </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {order.images && order.images.length > 0 && (
+                                <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                                  <h4 className="text-white font-semibold mb-3 flex items-center">
+                                    <Package className="w-5 h-5 mr-2 text-purple-400" />
+                                    Images de Référence ({order.images.length})
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {order.images.map((imageUrl, idx) => {
+                                      // Debug: Log image URL
+                                      console.log(`Order ${order.id} - Image ${idx + 1}:`, imageUrl);
+                                      
+                                      return (
+                                        <div key={idx} className="relative group">
+                                          <img
+                                            src={imageUrl}
+                                            alt={`Image ${idx + 1}`}
+                                            className="w-full h-32 object-cover rounded-lg border-2 border-slate-600 group-hover:border-blue-500 transition-all cursor-pointer"
+                                            onClick={() => window.open(imageUrl, '_blank')}
+                                            onError={(e) => {
+                                              console.error(`Failed to load image ${idx + 1}:`, imageUrl);
+                                              e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23334155" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%23fff" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
+                                            }}
+                                          />
+                                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 rounded-lg transition-all flex items-center justify-center">
+                                            <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                          </div>
+                                          <div className="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                            {idx + 1}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {/* Debug URL display - remove after testing */}
+                                  <div className="mt-3 text-xs text-slate-400 max-h-20 overflow-auto">
+                                    <p className="font-semibold mb-1">Debug - URLs:</p>
+                                    {order.images.map((url, idx) => (
+                                      <p key={idx} className="truncate" title={url}>
+                                        {idx + 1}. {url}
+                                      </p>
                                     ))}
                                   </div>
                                 </div>

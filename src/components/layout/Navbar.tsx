@@ -14,14 +14,12 @@ import {
   Scissors
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useCart } from '../../context/CartContext';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { Button } from '../common/Button';
 
 export const Navbar: React.FC = () => {
   const { session, user, signOut } = useAuth();
   const { profile } = useUserProfile();
-  const { getTotalItems } = useCart();
   const location = useLocation();
 
   // Get user info from profile (preferred) or session fallback
@@ -31,7 +29,6 @@ export const Navbar: React.FC = () => {
   const userNavItems = [
     { path: '/dashboard', icon: Home, label: 'Tableau de Bord' },
     { path: '/shop', icon: ShoppingBag, label: 'Boutique' },
-    { path: '/orders', icon: ShoppingCart, label: 'Commandes' },
     { path: '/contact', icon: Phone, label: 'Contact' },
     { path: '/profile', icon: User, label: 'Profil' },
   ];
@@ -44,7 +41,6 @@ export const Navbar: React.FC = () => {
   ];
 
   const navItems = userRole === 'admin' ? adminNavItems : userNavItems;
-  const cartItemCount = getTotalItems();
 
   return (
     <nav className="bg-slate-900 border-r border-slate-700 w-64 min-h-screen fixed left-0 top-0 z-40">
@@ -69,11 +65,6 @@ export const Navbar: React.FC = () => {
               >
                 <item.icon className="w-5 h-5" />
                 <span>{item.label}</span>
-                {item.path === '/orders' && cartItemCount > 0 && (
-                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-auto">
-                    {cartItemCount}
-                  </span>
-                )}
               </Link>
             );
           })}

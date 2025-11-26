@@ -1,14 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import { CartProvider } from './context/CartContext';
 import { AuthGuard } from './components/auth/AuthGuard';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/user/DashboardPage';
 import { ShopPage } from './pages/user/ShopPage';
-import { OrdersPage } from './pages/user/OrdersPage';
 import { ContactPage } from './pages/user/ContactPage';
 import { ProfilePage } from './pages/user/ProfilePage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -20,8 +19,8 @@ import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
+    <ErrorBoundary>
+      <AuthProvider>
         <Router>
           <Routes>
             {/* Public Routes */}
@@ -41,14 +40,6 @@ function App() {
               <AuthGuard>
                 <Layout>
                   <ShopPage />
-                </Layout>
-              </AuthGuard>
-            } />
-            
-            <Route path="/orders" element={
-              <AuthGuard>
-                <Layout>
-                  <OrdersPage />
                 </Layout>
               </AuthGuard>
             } />
@@ -117,8 +108,8 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Router>
-      </CartProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

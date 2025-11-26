@@ -11,7 +11,6 @@ import {
   updateUserRole, 
   deleteUser 
 } from '../../utils/userService';
-import { fetchUserOrders } from '../../utils/orderService';
 
 export const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -125,13 +124,10 @@ export const UserManagement: React.FC = () => {
   };
 
   const getUserOrders = async (userId: string) => {
-    try {
-      const orders = await fetchUserOrders(userId);
-      return orders;
-    } catch (error) {
-      console.error('Error fetching user orders:', error);
-      return [];
-    }
+    // Note: Regular product orders have been deprecated.
+    // All orders are now managed through custom_orders.
+    // This function returns empty array for backward compatibility.
+    return [];
   };
 
   return (
