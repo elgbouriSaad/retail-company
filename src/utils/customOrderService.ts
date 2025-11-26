@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { Database, Json } from '../lib/database.types';
+import type { Database } from '../lib/database.types';
 import {
   Order,
   OrderForm,
@@ -18,6 +18,21 @@ type OrderStatus = Order['status'];
 type DbCustomOrderRow = Database['public']['Tables']['custom_orders']['Row'];
 type DbCustomOrderInsert = Database['public']['Tables']['custom_orders']['Insert'];
 type DbCustomOrderUpdate = Database['public']['Tables']['custom_orders']['Update'];
+type DbCustomOrderItemRow = Database['public']['Tables']['custom_order_items']['Row'];
+type DbCustomOrderRefMaterialRow =
+  Database['public']['Tables']['custom_order_reference_materials']['Row'];
+type DbCustomOrderImageRow = Database['public']['Tables']['custom_order_images']['Row'];
+type DbCustomOrderInstallmentRow =
+  Database['public']['Tables']['custom_order_installments']['Row'];
+type DbCustomOrderPaymentInsert =
+  Database['public']['Tables']['custom_order_payments']['Insert'];
+
+type DbCustomOrderWithRelations = DbCustomOrderRow & {
+  custom_order_items: DbCustomOrderItemRow[];
+  custom_order_reference_materials: DbCustomOrderRefMaterialRow[];
+  custom_order_images: DbCustomOrderImageRow[];
+  custom_order_installments: DbCustomOrderInstallmentRow[];
+};
 
 export interface CreateCustomOrderInput extends OrderForm {
   status: OrderStatus;
@@ -25,36 +40,105 @@ export interface CreateCustomOrderInput extends OrderForm {
   totalAmount: number;
 }
 
+export interface RecordCustomOrderPaymentInput {
+  orderId: string;
+  installmentId: string;
+  amount: number;
+  method: PaymentInstallment['method'];
+  date: string;
+  notes?: string;
+}
+
 const client: SupabaseClient<Database, 'public', 'public'> = supabase;
-const customOrders = () =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  client.from('custom_orders') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrders = () => client.from('custom_orders') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrderItems = () => client.from('custom_order_items') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrderRefMaterials = () => client.from('custom_order_reference_materials') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrderImages = () => client.from('custom_order_images') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrderInstallments = () => client.from('custom_order_installments') as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customOrderPayments = () => client.from('custom_order_payments') as any;
+const CUSTOM_ORDER_SELECT = `
+  *,
+  custom_order_items(*),
+  custom_order_reference_materials(*),
+  custom_order_images(*),
+  custom_order_installments(*)
+`;
 
-const toJson = (value: unknown): Json => value as Json;
+const sortByPosition = <T extends { position?: number }>(rows: T[] = []): T[] =>
+  [...rows].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
-const parseJsonArray = <T>(value: Json | null): T[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value as T[];
+const fromDbOrderStatus = (status: DbCustomOrderRow['status']): OrderStatus =>
+  status.toLowerCase().replace('_', '-') as OrderStatus;
+
+const toDbStatus = (status: OrderStatus): DbCustomOrderUpdate['status'] =>
+  status.toUpperCase().replace('-', '_') as DbCustomOrderUpdate['status'];
+
+const fromDbInstallmentStatus = (
+  status: DbCustomOrderInstallmentRow['status']
+): PaymentInstallment['status'] => status.toLowerCase() as PaymentInstallment['status'];
+
+const toDbInstallmentStatus = (
+  status: PaymentInstallment['status']
+): DbCustomOrderInstallmentRow['status'] =>
+  status.toUpperCase() as DbCustomOrderInstallmentRow['status'];
+
+const fromDbPaymentMethod = (
+  method: DbCustomOrderInstallmentRow['method'] | null
+): PaymentInstallment['method'] | undefined =>
+  method ? (method.toLowerCase() as PaymentInstallment['method']) : undefined;
+
+const toDbPaymentMethod = (
+  method?: PaymentInstallment['method'] | null
+): DbCustomOrderInstallmentRow['method'] | null =>
+  method ? (method.toUpperCase() as DbCustomOrderInstallmentRow['method']) : null;
+
+const toUtcTimestamp = (date?: string): string => {
+  if (!date) {
+    return new Date().toISOString();
   }
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as T[];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  return `${date}T00:00:00Z`;
 };
 
-const mapRowToOrder = (row: DbCustomOrderRow): Order => {
-  const pongeItems = parseJsonArray<PongeItem>(row.ponge_items);
-  const referenceMaterials = parseJsonArray<ReferenceMaterial>(row.reference_materials);
-  const images = parseJsonArray<string>(row.images);
-  const schedule = parseJsonArray<PaymentInstallment>(row.payment_schedule);
+const mapInstallments = (
+  rows: DbCustomOrderInstallmentRow[] = []
+): PaymentInstallment[] =>
+  sortByPosition(rows).map(row => ({
+    id: row.id,
+    dueDate: row.due_date,
+    amount: Number(row.amount) || 0,
+    status: fromDbInstallmentStatus(row.status),
+    paidDate: row.paid_date || undefined,
+    paidAmount: row.paid_amount !== null ? Number(row.paid_amount) : undefined,
+    method: fromDbPaymentMethod(row.method),
+    notes: row.notes || undefined,
+  }));
+
+const mapRowToOrder = (row: DbCustomOrderWithRelations): Order => {
+  const pongeItems: PongeItem[] = sortByPosition(row.custom_order_items).map(item => ({
+    id: item.id,
+    description: item.description,
+  }));
+
+  const referenceMaterials: ReferenceMaterial[] = sortByPosition(
+    row.custom_order_reference_materials
+  ).map(material => ({
+    id: material.id,
+    name: material.name,
+    description: material.description ?? '',
+    quantity: material.quantity,
+  }));
+
+  const images = sortByPosition(row.custom_order_images).map(image => image.url);
+  const paymentSchedule = mapInstallments(row.custom_order_installments);
 
   const products = pongeItems.map((item, index) => ({
-    productId: item.id || `ponge-${index + 1}`,
+    productId: item.id,
     productName: item.description || `Article ${index + 1}`,
     quantity: 1,
     size: 'custom',
@@ -65,7 +149,7 @@ const mapRowToOrder = (row: DbCustomOrderRow): Order => {
     id: row.id,
     userId: 'custom-order',
     products,
-    status: row.status.toLowerCase().replace('_', '-') as OrderStatus,
+    status: fromDbOrderStatus(row.status),
     totalAmount: Number(row.total_amount) || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -79,16 +163,27 @@ const mapRowToOrder = (row: DbCustomOrderRow): Order => {
     advanceMoney: Number(row.advance_money) || 0,
     paymentMonths: row.payment_months,
     images,
-    paymentSchedule: schedule,
+    paymentSchedule,
   };
 };
 
-const toDbStatus = (status: OrderStatus): DbCustomOrderUpdate['status'] =>
-  status.toUpperCase().replace('-', '_') as DbCustomOrderUpdate['status'];
+const fetchCustomOrderById = async (orderId: string): Promise<Order> => {
+  const { data, error } = await customOrders()
+    .select(CUSTOM_ORDER_SELECT)
+    .eq('id', orderId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching custom order', error);
+    throw error;
+  }
+
+  return mapRowToOrder(data as DbCustomOrderWithRelations);
+};
 
 export const fetchCustomOrders = async (): Promise<Order[]> => {
   const { data, error } = await customOrders()
-    .select('*')
+    .select(CUSTOM_ORDER_SELECT)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -96,7 +191,121 @@ export const fetchCustomOrders = async (): Promise<Order[]> => {
     throw error;
   }
 
-  return (data as DbCustomOrderRow[]).map(mapRowToOrder);
+  return (data as DbCustomOrderWithRelations[]).map(mapRowToOrder);
+};
+
+const insertPongeItems = async (orderId: string, items: PongeItem[]): Promise<void> => {
+  const sanitized = items.filter(item => item.description && item.description.trim().length > 0);
+  if (!sanitized.length) return;
+
+  type ItemInsert = Database['public']['Tables']['custom_order_items']['Insert'];
+  const rows: ItemInsert[] = sanitized.map((item, index) => ({
+    custom_order_id: orderId,
+    description: item.description.trim(),
+    position: index,
+  }));
+  
+  const { error } = await customOrderItems().insert(rows);
+  if (error) throw error;
+};
+
+const insertReferenceMaterials = async (
+  orderId: string,
+  materials: ReferenceMaterial[]
+): Promise<void> => {
+  const sanitized = materials.filter(material => material.name && material.name.trim().length > 0);
+  if (!sanitized.length) return;
+
+  type MaterialInsert = Database['public']['Tables']['custom_order_reference_materials']['Insert'];
+  const rows: MaterialInsert[] = sanitized.map((material, index) => ({
+    custom_order_id: orderId,
+    name: material.name.trim(),
+    description: material.description?.trim() || null,
+    quantity: Number.isFinite(material.quantity) ? material.quantity : 1,
+    position: index,
+  }));
+  
+  const { error } = await customOrderRefMaterials().insert(rows);
+  if (error) throw error;
+};
+
+const insertSchedule = async (
+  orderId: string,
+  schedule: PaymentInstallment[]
+): Promise<{ id: string; position: number }[]> => {
+  if (!schedule.length) return [];
+
+  type InstallmentInsert = Database['public']['Tables']['custom_order_installments']['Insert'];
+  const rows: InstallmentInsert[] = schedule.map((installment, index) => ({
+    custom_order_id: orderId,
+    due_date: installment.dueDate,
+    amount: installment.amount,
+    status: toDbInstallmentStatus(installment.status),
+    paid_date: installment.paidDate ?? null,
+    paid_amount: installment.paidAmount ?? null,
+    method: toDbPaymentMethod(installment.method),
+    notes: installment.notes ?? null,
+    position: index,
+  }));
+
+  const { data, error } = await customOrderInstallments()
+    .insert(rows)
+    .select('id, position');
+
+  if (error) throw error;
+  return (data as { id: string; position: number }[]) || [];
+};
+
+const insertInitialPayments = async (
+  orderId: string,
+  schedule: PaymentInstallment[],
+  insertedInstallments: { id: string; position: number }[]
+): Promise<void> => {
+  const paidInstallments = schedule
+    .map((installment, index) => ({
+      installment,
+      position: index,
+    }))
+    .filter(({ installment }) => installment.status === 'paid');
+
+  if (!paidInstallments.length) {
+    return;
+  }
+
+  const rows: DbCustomOrderPaymentInsert[] = paidInstallments.map(
+    ({ installment, position }) => {
+      const installmentId =
+        insertedInstallments.find(row => row.position === position)?.id ?? null;
+      return {
+        custom_order_id: orderId,
+        installment_id: installmentId,
+        amount: installment.paidAmount ?? installment.amount,
+        method: toDbPaymentMethod(installment.method) ?? 'CASH',
+        paid_at: toUtcTimestamp(installment.paidDate),
+        notes: installment.notes ?? null,
+      } as DbCustomOrderPaymentInsert;
+    }
+  );
+
+  const { error } = await customOrderPayments().insert(rows);
+  if (error) throw error;
+};
+
+const insertImages = async (orderId: string, files: File[]): Promise<void> => {
+  if (!files.length) return;
+
+  const imageUrls = await uploadCustomOrderImages(files, orderId);
+  if (!imageUrls.length) return;
+
+  type ImageInsert = Database['public']['Tables']['custom_order_images']['Insert'];
+  const rows: ImageInsert[] = imageUrls.map((url, index) => ({
+    custom_order_id: orderId,
+    url,
+    position: index,
+  }));
+  
+  const { error } = await customOrderImages().insert(rows);
+  if (error) throw error;
 };
 
 export const createCustomOrder = async (
@@ -115,21 +324,17 @@ export const createCustomOrder = async (
   const insertPayload: DbCustomOrderInsert = {
     client_name: rest.clientName,
     phone_number: rest.phoneNumber,
-    ponge_items: toJson(rest.pongeItems),
-    reference_materials: toJson(rest.referenceMaterials),
-    images: toJson([]),
     start_date: rest.startDate || null,
     finish_date: rest.finishDate || new Date().toISOString(),
     down_payment: rest.downPayment,
     advance_money: rest.advanceMoney,
     payment_months: rest.paymentMonths,
     total_amount: totalAmount,
-    status: toDbStatus(status) as DbCustomOrderInsert['status'],
-    payment_schedule: toJson(paymentSchedule),
+    status: toDbStatus(status),
   };
 
   const { data, error } = await customOrders()
-    .insert(insertPayload)
+    .insert(insertPayload as DbCustomOrderInsert)
     .select('*')
     .single();
 
@@ -138,51 +343,38 @@ export const createCustomOrder = async (
     throw error;
   }
 
-  let createdRow = data as DbCustomOrderRow;
+  const createdRow = data as DbCustomOrderRow;
+  const orderId = createdRow.id;
 
-  if (files.length) {
-    try {
-      const imageUrls = await uploadCustomOrderImages(files, createdRow.id);
-      const { data: updatedRow, error: updateError } = await customOrders()
-        .update({ images: toJson(imageUrls) as DbCustomOrderUpdate['images'] })
-        .eq('id', createdRow.id)
-        .select('*')
-        .single();
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      createdRow = updatedRow as DbCustomOrderRow;
-    } catch (uploadError) {
-      console.error('Error uploading custom order images', uploadError);
-      throw uploadError;
-    }
+  try {
+    await insertPongeItems(orderId, rest.pongeItems);
+    await insertReferenceMaterials(orderId, rest.referenceMaterials);
+    const insertedInstallments = await insertSchedule(orderId, paymentSchedule);
+    await insertInitialPayments(orderId, paymentSchedule, insertedInstallments);
+    await insertImages(orderId, files);
+  } catch (relationError) {
+    await customOrders().delete().eq('id', orderId);
+    console.error('Error while inserting custom order relations', relationError);
+    throw relationError;
   }
 
-  return mapRowToOrder(createdRow);
+  return fetchCustomOrderById(orderId);
 };
 
 export const updateCustomOrderStatus = async (
   orderId: string,
   status: OrderStatus
 ): Promise<Order> => {
-  const payload: DbCustomOrderUpdate = {
-    status: toDbStatus(status),
-  };
-
-  const { data, error } = await customOrders()
-    .update(payload)
-    .eq('id', orderId)
-    .select('*')
-    .single();
+  const { error } = await customOrders()
+    .update({ status: toDbStatus(status) } as DbCustomOrderUpdate)
+    .eq('id', orderId);
 
   if (error) {
     console.error('Error updating custom order status', error);
     throw error;
   }
 
-  return mapRowToOrder(data as DbCustomOrderRow);
+  return fetchCustomOrderById(orderId);
 };
 
 export const updateCustomOrderSchedule = async (
@@ -190,32 +382,102 @@ export const updateCustomOrderSchedule = async (
   schedule: PaymentInstallment[],
   status?: OrderStatus
 ): Promise<Order> => {
-  const payload: DbCustomOrderUpdate = {
-    payment_schedule: toJson(schedule),
-  };
+  if (schedule.length) {
+    type InstallmentUpdate = Database['public']['Tables']['custom_order_installments']['Update'];
+    const rows: InstallmentUpdate[] = schedule.map((installment, index) => ({
+      id: installment.id,
+      custom_order_id: orderId,
+      due_date: installment.dueDate,
+      amount: installment.amount,
+      status: toDbInstallmentStatus(installment.status),
+      paid_date: installment.paidDate ?? null,
+      paid_amount: installment.paidAmount ?? null,
+      method: toDbPaymentMethod(installment.method),
+      notes: installment.notes ?? null,
+      position: index,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: upsertError } = await customOrderInstallments()
+      .upsert(rows, { onConflict: 'id' });
+
+    if (upsertError) {
+      console.error('Error syncing custom order installments', upsertError);
+      throw upsertError;
+    }
+  }
 
   if (status) {
-    payload.status = toDbStatus(status);
+    const { error: statusError } = await customOrders()
+      .update({ status: toDbStatus(status) } as DbCustomOrderUpdate)
+      .eq('id', orderId);
+
+    if (statusError) {
+      console.error('Error updating custom order status during schedule sync', statusError);
+      throw statusError;
+    }
   }
 
-  const { data, error } = await customOrders()
-    .update(payload)
-    .eq('id', orderId)
-    .select('*')
-    .single();
+  return fetchCustomOrderById(orderId);
+};
 
-  if (error) {
-    console.error('Error updating payment schedule', error);
-    throw error;
+export const recordCustomOrderPayment = async (
+  input: RecordCustomOrderPaymentInput
+): Promise<Order> => {
+  const { orderId, installmentId, amount, method, date, notes } = input;
+  const dbMethod = toDbPaymentMethod(method) ?? 'CASH';
+
+  const paymentRow: DbCustomOrderPaymentInsert = {
+    custom_order_id: orderId,
+    installment_id: installmentId,
+    amount,
+    method: dbMethod,
+    paid_at: toUtcTimestamp(date),
+    notes: notes || null,
+  };
+
+  const { error: paymentError } = await customOrderPayments().insert(paymentRow);
+
+  if (paymentError) {
+    console.error('Error recording custom order payment', paymentError);
+    throw paymentError;
   }
 
-  return mapRowToOrder(data as DbCustomOrderRow);
+  type InstallmentUpdate = Database['public']['Tables']['custom_order_installments']['Update'];
+  const updateRow: InstallmentUpdate = {
+    status: 'PAID',
+    paid_date: date,
+    paid_amount: amount,
+    method: dbMethod,
+    notes: notes || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: installmentError } = await customOrderInstallments()
+    .update(updateRow)
+    .eq('id', installmentId)
+    .eq('custom_order_id', orderId);
+
+  if (installmentError) {
+    console.error('Error updating installment after payment', installmentError);
+    throw installmentError;
+  }
+
+  const updatedOrder = await fetchCustomOrderById(orderId);
+  const allPaid =
+    updatedOrder.paymentSchedule &&
+    updatedOrder.paymentSchedule.length > 0 &&
+    updatedOrder.paymentSchedule.every(installment => installment.status === 'paid');
+
+  if (allPaid && updatedOrder.status !== 'delivered') {
+    return updateCustomOrderStatus(orderId, 'delivered');
+  }
+
+  return updatedOrder;
 };
 
 export const deleteCustomOrder = async (orderId: string): Promise<void> => {
-  const { error } = await customOrders()
-    .delete()
-    .eq('id', orderId);
+  const { error } = await customOrders().delete().eq('id', orderId);
 
   if (error) {
     console.error('Error deleting custom order', error);
@@ -223,108 +485,66 @@ export const deleteCustomOrder = async (orderId: string): Promise<void> => {
   }
 };
 
-/**
- * Récupérer les commandes à venir (7 jours ou moins) avec le statut 'pending'
- */
 export const fetchUpcomingOrders = async (): Promise<Order[]> => {
-  try {
-    const now = new Date();
-    const weekFromNow = new Date();
-    weekFromNow.setDate(now.getDate() + 7);
+  const now = new Date();
+  const weekFromNow = new Date();
+  weekFromNow.setDate(now.getDate() + 7);
 
-    const { data, error } = await customOrders()
-      .select('*')
-      .eq('status', 'PENDING')
-      .gte('start_date', now.toISOString())
-      .lte('start_date', weekFromNow.toISOString())
-      .order('start_date', { ascending: true });
+  const { data, error } = await customOrders()
+    .select(CUSTOM_ORDER_SELECT)
+    .eq('status', 'PENDING')
+    .gte('start_date', now.toISOString())
+    .lte('start_date', weekFromNow.toISOString())
+    .order('start_date', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching upcoming orders', error);
-      throw error;
-    }
-
-    return (data as DbCustomOrderRow[]).map(mapRowToOrder);
-  } catch (error) {
-    console.error('Error fetching upcoming orders:', error);
+  if (error) {
+    console.error('Error fetching upcoming orders', error);
     throw error;
   }
+
+  return (data as DbCustomOrderWithRelations[]).map(mapRowToOrder);
 };
 
-/**
- * Récupérer les commandes en cours
- */
 export const fetchInProgressOrders = async (): Promise<Order[]> => {
-  try {
-    const { data, error } = await customOrders()
-      .select('*')
-      .eq('status', 'IN_PROGRESS')
-      .order('created_at', { ascending: false });
+  const { data, error } = await customOrders()
+    .select(CUSTOM_ORDER_SELECT)
+    .eq('status', 'IN_PROGRESS')
+    .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching in-progress orders', error);
-      throw error;
-    }
-
-    return (data as DbCustomOrderRow[]).map(mapRowToOrder);
-  } catch (error) {
-    console.error('Error fetching in-progress orders:', error);
+  if (error) {
+    console.error('Error fetching in-progress orders', error);
     throw error;
   }
+
+  return (data as DbCustomOrderWithRelations[]).map(mapRowToOrder);
 };
 
-/**
- * Calculer le montant total payé pour une commande
- * IMPORTANT: On calcule uniquement les paiements RÉELLEMENT effectués (status='paid')
- */
 export const calculateTotalPaid = (order: Order): number => {
-  let totalPaid = 0;
-  
-  // Si on a un échéancier de paiement, on compte uniquement les paiements marqués comme 'paid'
   if (order.paymentSchedule && order.paymentSchedule.length > 0) {
-    totalPaid = order.paymentSchedule
+    return order.paymentSchedule
       .filter(installment => installment.status === 'paid')
-      .reduce((sum, installment) => sum + (installment.paidAmount || installment.amount), 0);
-    
-    console.log(`[calculateTotalPaid] Order ${order.id}: ${order.paymentSchedule.filter(i => i.status === 'paid').length}/${order.paymentSchedule.length} installments paid = ${totalPaid} DH`);
-  } else {
-    // Si pas d'échéancier, on utilise l'acompte et l'avance
-    // MAIS ATTENTION: il faut vérifier si ces montants ne sont pas déjà le total
-    const downPayment = order.downPayment || 0;
-    const advanceMoney = order.advanceMoney || 0;
-    totalPaid = downPayment + advanceMoney;
-    
-    console.log(`[calculateTotalPaid] Order ${order.id}: No schedule - downPayment=${downPayment}, advanceMoney=${advanceMoney}, total=${totalPaid}`);
+      .reduce(
+        (sum, installment) => sum + (installment.paidAmount ?? installment.amount),
+        0
+      );
   }
-  
-  console.log(`[calculateTotalPaid] Order ${order.id}: TOTAL PAID=${totalPaid} / TOTAL ORDER=${order.totalAmount}`);
-  return totalPaid;
+
+  const downPayment = order.downPayment || 0;
+  const advanceMoney = order.advanceMoney || 0;
+  return downPayment + advanceMoney;
 };
 
-/**
- * Récupérer les commandes qui ne sont pas complètement payées
- */
 export const fetchUnpaidOrders = async (): Promise<Order[]> => {
-  try {
-    const { data, error } = await customOrders()
-      .select('*')
-      .order('created_at', { ascending: false });
+  const { data, error } = await customOrders()
+    .select(CUSTOM_ORDER_SELECT)
+    .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching unpaid orders', error);
-      throw error;
-    }
-
-    // Filtrer les commandes qui ne sont pas complètement payées
-    const orders = (data as DbCustomOrderRow[]).map(mapRowToOrder);
-    
-    return orders.filter(order => {
-      const totalPaid = calculateTotalPaid(order);
-      return totalPaid < order.totalAmount;
-    });
-  } catch (error) {
-    console.error('Error fetching unpaid orders:', error);
+  if (error) {
+    console.error('Error fetching unpaid orders', error);
     throw error;
   }
+
+  const orders = (data as DbCustomOrderWithRelations[]).map(mapRowToOrder);
+  return orders.filter(order => calculateTotalPaid(order) < order.totalAmount);
 };
 
