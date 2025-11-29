@@ -67,7 +67,11 @@ const CUSTOM_ORDER_SELECT = `
   custom_order_items(*),
   custom_order_reference_materials(*),
   custom_order_images(*),
-  custom_order_installments(*)
+  custom_order_installments(*),
+  categories (
+    id,
+    name
+  )
 `;
 
 const sortByPosition = <T extends { position?: number }>(rows: T[] = []): T[] =>
@@ -145,6 +149,11 @@ const mapRowToOrder = (row: DbCustomOrderWithRelations): Order => {
     price: 0,
   }));
 
+  // Extract category info if available
+  const categoryInfo = (row as any).categories;
+  const categoryName = categoryInfo?.name;
+  const categoryId = row.category_id || undefined;
+
   return {
     id: row.id,
     userId: 'custom-order',
@@ -159,11 +168,14 @@ const mapRowToOrder = (row: DbCustomOrderWithRelations): Order => {
     referenceMaterials,
     startDate: row.start_date || undefined,
     finishDate: row.finish_date || undefined,
+    actualDeliveryDate: row.actual_delivery_date || undefined,
     downPayment: Number(row.down_payment) || 0,
     advanceMoney: Number(row.advance_money) || 0,
     paymentMonths: row.payment_months,
     images,
     paymentSchedule,
+    categoryId,
+    categoryName,
   };
 };
 
@@ -326,11 +338,13 @@ export const createCustomOrder = async (
     phone_number: rest.phoneNumber,
     start_date: rest.startDate || null,
     finish_date: rest.finishDate || new Date().toISOString(),
+    actual_delivery_date: rest.actualDeliveryDate || null,
     down_payment: rest.downPayment,
     advance_money: rest.advanceMoney,
     payment_months: rest.paymentMonths,
     total_amount: totalAmount,
     status: toDbStatus(status),
+    category_id: rest.categoryId || null,
   };
 
   const { data, error } = await customOrders()
@@ -365,8 +379,18 @@ export const updateCustomOrderStatus = async (
   orderId: string,
   status: OrderStatus
 ): Promise<Order> => {
+  const updatePayload: DbCustomOrderUpdate = { 
+    status: toDbStatus(status),
+    updated_at: new Date().toISOString()
+  };
+
+  // Automatically set actual_delivery_date when status changes to 'delivered'
+  if (status === 'delivered') {
+    updatePayload.actual_delivery_date = new Date().toISOString();
+  }
+
   const { error } = await customOrders()
-    .update({ status: toDbStatus(status) } as DbCustomOrderUpdate)
+    .update(updatePayload)
     .eq('id', orderId);
 
   if (error) {

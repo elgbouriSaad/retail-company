@@ -1,15 +1,16 @@
 import React from 'react';
-import { DivideIcon as LucideIcon } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 
 interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success';
   size?: 'sm' | 'md' | 'lg';
   icon?: LucideIcon;
   onClick?: (e?: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
   className?: string;
+  title?: string;
   as?: React.ElementType; // For Link component or other elements
   to?: string; // For Link component
 }
@@ -23,6 +24,7 @@ export const Button: React.FC<ButtonProps> = ({
   disabled = false,
   type = 'button',
   className = '',
+  title,
   as: Component = 'button',
   ...props
 }) => {
@@ -33,6 +35,7 @@ export const Button: React.FC<ButtonProps> = ({
     secondary: 'bg-slate-600 hover:bg-slate-700 text-white focus:ring-slate-500',
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
     ghost: 'bg-transparent hover:bg-slate-700 text-slate-300 hover:text-white focus:ring-slate-500',
+    success: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500',
   };
 
   const sizeClasses = {
@@ -52,6 +55,7 @@ export const Button: React.FC<ButtonProps> = ({
         onClick={onClick}
         disabled={disabled}
         className={combinedClassName}
+        title={title}
         {...props}
       >
         {Icon && <Icon className="w-4 h-4 mr-2" />}
@@ -64,6 +68,7 @@ export const Button: React.FC<ButtonProps> = ({
     <Component
       onClick={onClick}
       className={combinedClassName}
+      title={title}
       {...props}
     >
       {Icon && <Icon className="w-4 h-4 mr-2" />}

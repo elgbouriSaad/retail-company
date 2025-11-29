@@ -24,18 +24,20 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children, requiredRole }) 
     return <Navigate to="/login" replace />;
   }
 
-  // Check role if required (role is stored in user_metadata)
+  // Get user role from user_metadata
+  const userRole = session.user.user_metadata?.role?.toLowerCase() || 'user';
+
+  // Check role if required
   if (requiredRole) {
-    const userRole = session.user.user_metadata?.role?.toLowerCase() || 'user';
     if (userRole !== requiredRole) {
-      return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-            <p className="text-slate-400">You don't have permission to access this page.</p>
-          </div>
-        </div>
-      );
+      // Redirect based on actual role instead of showing access denied
+      if (userRole === 'admin') {
+        // User is admin but trying to access user page, redirect to admin dashboard
+        return <Navigate to="/admin/dashboard" replace />;
+      } else {
+        // User is not admin but trying to access admin page, redirect to user dashboard
+        return <Navigate to="/dashboard" replace />;
+      }
     }
   }
 

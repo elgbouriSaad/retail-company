@@ -17,10 +17,15 @@ export const LoginPage: React.FC = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already logged in
+  // Redirect if already logged in - redirect based on role
   useEffect(() => {
     if (session) {
-      navigate('/dashboard', { replace: true });
+      const userRole = session.user.user_metadata?.role?.toLowerCase() || 'user';
+      if (userRole === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   }, [session, navigate]);
 

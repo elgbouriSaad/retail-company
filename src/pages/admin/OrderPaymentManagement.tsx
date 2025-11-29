@@ -25,9 +25,11 @@ import {
   recordCustomOrderPayment,
 } from '../../utils/customOrderService';
 import { validateImageFiles } from '../../utils/uploadService';
+import { fetchCategories, Category } from '../../utils/categoryService';
 
 export const OrderPaymentManagement: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
@@ -44,9 +46,11 @@ export const OrderPaymentManagement: React.FC = () => {
     images: [],
     startDate: '',
     finishDate: '',
+    actualDeliveryDate: '', // Not used in form, but kept for type compatibility
     downPayment: 0,
     advanceMoney: 0,
     paymentMonths: 1,
+    categoryId: '',
   });
   
   const [paymentForm, setPaymentForm] = useState({
@@ -103,7 +107,17 @@ export const OrderPaymentManagement: React.FC = () => {
 
   useEffect(() => {
     loadOrders(true);
+    loadCategories();
   }, [loadOrders]);
+
+  const loadCategories = async () => {
+    try {
+      const fetched = await fetchCategories();
+      setCategories(fetched);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const filteredOrders = orders.filter(order => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -482,9 +496,11 @@ export const OrderPaymentManagement: React.FC = () => {
         images: [],
         startDate: '',
         finishDate: '',
+        actualDeliveryDate: '', // Not used in form
         downPayment: 0,
         advanceMoney: 0,
         paymentMonths: 1,
+        categoryId: '',
       });
       setUploadedImages([]);
     } catch (error) {
@@ -732,61 +748,7 @@ export const OrderPaymentManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Overdue Payments Alert Section */}
-      {ordersWithOverduePayments.length > 0 && (
-        <Card className="bg-gradient-to-r from-red-500/20 to-red-600/10 border-2 border-red-500/40 shadow-xl shadow-red-500/20">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="p-3 bg-red-500/20 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-red-400 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-red-400">
-                ⚠ Paiements en Retard ({ordersWithOverduePayments.length})
-              </h3>
-              <p className="text-red-300 text-sm">Action requise - Ces commandes ont des paiements en retard</p>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            {ordersWithOverduePayments.map(order => {
-              const overdueInst = getOverdueInstallments(order.paymentSchedule || []);
-              const totalOverdue = overdueInst.reduce((sum, inst) => sum + inst.amount, 0);
-              const oldestOverdue = overdueInst[0];
-              const daysLate = oldestOverdue ? calculateDaysOverdue(oldestOverdue.dueDate) : 0;
-              
-              return (
-                <div key={order.id} className="flex items-center justify-between p-4 bg-slate-700/70 rounded-xl border border-red-500/30 hover:bg-slate-700 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                      <span className="text-red-400 font-bold text-lg">{daysLate}</span>
-                    </div>
-                    <div>
-                      <p className="text-white font-bold text-base">{order.clientName}</p>
-                      <p className="text-red-400 font-semibold text-sm flex items-center">
-                        <DollarSign className="w-4 h-4 mr-1" />
-                        {totalOverdue.toFixed(2)} DH en retard
-                      </p>
-                      <p className="text-slate-400 text-xs mt-1">
-                        Commande #{order.id.slice(-6)} • {daysLate} jour{daysLate > 1 ? 's' : ''} de retard
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    icon={DollarSign}
-                    onClick={() => openPaymentModal(order, oldestOverdue)}
-                  >
-                    Enregistrer Paiement
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {/* Summary Cards */}
+      {/* Summary Cards - Always on Top */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="text-center bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 hover:border-blue-500/40 transition-all">
           <Package className="w-10 h-10 text-blue-500 mx-auto mb-3" />
@@ -818,6 +780,64 @@ export const OrderPaymentManagement: React.FC = () => {
           <p className="text-slate-400 text-sm">Livrées</p>
         </Card>
       </div>
+
+      {/* Overdue Payments Alert Section */}
+      {ordersWithOverduePayments.length > 0 && (
+        <Card className="bg-gradient-to-r from-red-500/20 to-red-600/10 border-2 border-red-500/40 shadow-xl shadow-red-500/20">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="p-3 bg-red-500/20 rounded-full">
+              <AlertTriangle className="w-8 h-8 text-red-400 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-red-400">
+                ⚠ Paiements en Retard ({ordersWithOverduePayments.length})
+              </h3>
+              <p className="text-red-300 text-sm">Action requise - Ces commandes ont des paiements en retard</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {ordersWithOverduePayments.map(order => {
+              const overdueInst = getOverdueInstallments(order.paymentSchedule || []);
+              const totalOverdue = overdueInst.reduce((sum, inst) => sum + inst.amount, 0);
+              const oldestOverdue = overdueInst[0];
+              const daysLate = oldestOverdue ? calculateDaysOverdue(oldestOverdue.dueDate) : 0;
+              
+              return (
+                <div key={order.id} className="flex items-center justify-between p-4 bg-slate-700/70 rounded-xl border border-red-500/30 hover:bg-slate-700 transition-colors">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                      <span className="text-red-400 font-bold text-lg">{daysLate}</span>
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-base">{order.clientName}</p>
+                      <p className="text-slate-300 text-sm flex items-center mt-1">
+                        <Phone className="w-3.5 h-3.5 mr-1.5" />
+                        {order.phoneNumber || '—'}
+                      </p>
+                      <p className="text-red-400 font-semibold text-sm flex items-center mt-1">
+                        <DollarSign className="w-4 h-4 mr-1" />
+                        {totalOverdue.toFixed(2)} DH en retard
+                      </p>
+                      <p className="text-slate-400 text-xs mt-1">
+                        Commande #{order.id.slice(-6)} • {daysLate} jour{daysLate > 1 ? 's' : ''} de retard
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    icon={DollarSign}
+                    onClick={() => openPaymentModal(order, oldestOverdue)}
+                  >
+                    Enregistrer Paiement
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>
@@ -856,9 +876,7 @@ export const OrderPaymentManagement: React.FC = () => {
                 <th className="text-left py-3 text-slate-300 font-medium w-10"></th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Commande #</th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Client</th>
-                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Articles</th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Montant Total</th>
-                <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Payé</th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Restant</th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Prochain Paiement</th>
                 <th className="text-left py-3 text-slate-400 font-medium tracking-wide uppercase text-xs">Statut</th>
@@ -868,14 +886,12 @@ export const OrderPaymentManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-800/60">
               {filteredOrders.map((order) => {
                 const isExpanded = expandedOrderId === order.id;
-                // Calculate payment totals including down payment
                 // Calculate payment totals
                 // Note: downPayment is the TOTAL amount, advanceMoney is first installment (part of total)
                 const totalPaidFromSchedule = order.paymentSchedule ? calculateTotalPaid(order.paymentSchedule) : 0;
                 const totalPaid = totalPaidFromSchedule;
                 const totalRemaining = order.totalAmount > 0 ? order.totalAmount - totalPaid : 0;
                 const nextPayment = order.paymentSchedule ? getNextPaymentDue(order.paymentSchedule) : null;
-                const paymentProgress = order.totalAmount > 0 ? (totalPaid / order.totalAmount) * 100 : 0;
                 
                 return (
                   <React.Fragment key={order.id}>
@@ -907,32 +923,9 @@ export const OrderPaymentManagement: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-5 pr-4 align-top">
-                        <div className="flex items-center text-slate-300 font-medium">
-                          <Package className="w-4 h-4 text-slate-400 mr-2" />
-                          <span className="text-slate-300">{order.pongeItems?.length || order.products.length}</span>
-                        </div>
-                      </td>
-                      <td className="py-5 pr-4 align-top">
                         <p className="text-white font-bold text-base whitespace-nowrap">
                           {order.totalAmount > 0 ? `${order.totalAmount.toFixed(2)} DH` : '—'}
                         </p>
-                      </td>
-                      <td className="py-5 pr-4 align-top">
-                        <div className="space-y-2 w-36">
-                          <div className="flex items-center justify-between text-xs text-slate-400 uppercase tracking-wide">
-                            <span>Payé</span>
-                            <span className="text-green-400 font-semibold">{totalPaid.toFixed(2)} DH</span>
-                          </div>
-                          {order.totalAmount > 0 && (
-                            <div className="w-full bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
-                              <div 
-                                className="bg-gradient-to-r from-green-500 to-green-400 h-2.5 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(paymentProgress, 100)}%` }}
-                              />
-                            </div>
-                          )}
-                          <p className="text-xs text-slate-500 font-semibold">{Math.round(paymentProgress)}%</p>
-                        </div>
                       </td>
                       <td className="py-5 pr-4 align-top">
                         <p className={`font-semibold ${totalRemaining > 0 ? 'text-orange-400' : 'text-green-400'}`}>
@@ -985,23 +978,10 @@ export const OrderPaymentManagement: React.FC = () => {
                       </td>
                       <td className="py-5 pl-4 pr-2 text-right align-top">
                         <div className="flex items-center justify-end space-x-3">
-                          {nextPayment && nextPayment.status !== 'paid' && (
-                            <Button
-                              size="sm"
-                              variant={nextPayment.status === 'overdue' ? "danger" : "primary"}
-                              onClick={(e) => {
-                                e?.stopPropagation();
-                                openPaymentModal(order, nextPayment);
-                              }}
-                            >
-                              <DollarSign className="w-4 h-4 mr-1.5" />
-                              Payer
-                            </Button>
-                          )}
                           {canAdvanceStatus(order.status) && (
                             <Button
                               size="sm"
-                              variant="ghost"
+                              variant={order.status === 'pending' ? 'primary' : 'success'}
                               disabled={statusUpdatingOrderId === order.id}
                               onClick={(e) => {
                                 e?.stopPropagation();
@@ -1019,6 +999,19 @@ export const OrderPaymentManagement: React.FC = () => {
                                 : 'Livrer'}
                             </Button>
                           )}
+                          {nextPayment && nextPayment.status !== 'paid' && (
+                            <Button
+                              size="sm"
+                              variant={nextPayment.status === 'overdue' ? "danger" : "primary"}
+                              onClick={(e) => {
+                                e?.stopPropagation();
+                                openPaymentModal(order, nextPayment);
+                              }}
+                              title="Payer"
+                            >
+                              <DollarSign className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="danger"
@@ -1027,14 +1020,12 @@ export const OrderPaymentManagement: React.FC = () => {
                               e?.stopPropagation();
                               handleDeleteOrder(order.id);
                             }}
+                            title="Supprimer"
                           >
                             {deletingOrderId === order.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
-                              <>
-                                <Trash2 className="w-4 h-4 mr-1.5" />
-                                Supprimer
-                              </>
+                              <Trash2 className="w-4 h-4" />
                             )}
                           </Button>
                         </div>
@@ -1062,18 +1053,35 @@ export const OrderPaymentManagement: React.FC = () => {
                                     <span className="text-slate-400">Téléphone:</span>
                                     <span className="text-white">{order.phoneNumber}</span>
                                   </div>
+                                  {order.categoryName && (
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-600">
+                                      <span className="text-slate-400">Catégorie:</span>
+                                      <span className="text-white font-semibold">{order.categoryName}</span>
+                                    </div>
+                                  )}
                                   <div className="flex justify-between items-center pb-2 border-b border-slate-600">
                                     <span className="text-slate-400">Date Début:</span>
                                     <span className="text-white">
                                       {order.startDate ? new Date(order.startDate).toLocaleDateString('fr-FR') : '—'}
                                     </span>
                                   </div>
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-slate-400">Date Fin:</span>
+                                  <div className="flex justify-between items-center pb-2 border-b border-slate-600">
+                                    <span className="text-slate-400">Date Prévue:</span>
                                     <span className="text-white">
                                       {order.finishDate ? new Date(order.finishDate).toLocaleDateString('fr-FR') : '—'}
                                     </span>
                                   </div>
+                                  {order.actualDeliveryDate && (
+                                    <div className="flex justify-between items-center bg-green-500/10 -mx-4 px-4 py-2 rounded">
+                                      <span className="text-green-400 font-semibold flex items-center">
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        Date Réelle de Livraison:
+                                      </span>
+                                      <span className="text-green-400 font-bold">
+                                        {new Date(order.actualDeliveryDate).toLocaleDateString('fr-FR')}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -1337,8 +1345,12 @@ export const OrderPaymentManagement: React.FC = () => {
             <Input
               label="Numéro de Téléphone"
               value={orderForm.phoneNumber}
-              onChange={(value) => setOrderForm(prev => ({ ...prev, phoneNumber: value }))}
-              placeholder="Entrez le numéro de téléphone"
+              onChange={(value) => {
+                // Only allow numbers
+                const numbersOnly = value.replace(/[^0-9]/g, '');
+                setOrderForm(prev => ({ ...prev, phoneNumber: numbersOnly }));
+              }}
+              placeholder="Ex: 0612345678"
               required
             />
           </div>
@@ -1486,7 +1498,7 @@ export const OrderPaymentManagement: React.FC = () => {
               onChange={(value) => setOrderForm(prev => ({ ...prev, startDate: value }))}
             />
             <Input
-              label="Date de Fin"
+              label="Date Prévue (Fin)"
               type="date"
               icon={Calendar}
               value={orderForm.finishDate}
@@ -1495,16 +1507,41 @@ export const OrderPaymentManagement: React.FC = () => {
             />
           </div>
 
+          {/* Category Selection */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Catégorie de Commande
+            </label>
+            <select
+              value={orderForm.categoryId}
+              onChange={(e) => setOrderForm(prev => ({ ...prev, categoryId: e.target.value }))}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Sélectionner une catégorie</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">Choisissez la catégorie pour cette commande</p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Input
                 label="💰 Acompte (Montant Total du Contrat)"
-                type="number"
-                step="0.01"
-                value={orderForm.downPayment.toString()}
-                onChange={(value) => setOrderForm(prev => ({ ...prev, downPayment: parseFloat(value) || 0 }))}
+                type="text"
+                value={orderForm.downPayment === 0 ? '' : orderForm.downPayment.toString()}
+                onChange={(value) => {
+                  // Only allow numbers and decimal point
+                  const numbersOnly = value.replace(/[^0-9.]/g, '');
+                  // Prevent multiple decimal points
+                  const parts = numbersOnly.split('.');
+                  const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numbersOnly;
+                  setOrderForm(prev => ({ ...prev, downPayment: parseFloat(sanitized) || 0 }));
+                }}
                 placeholder="Ex: 5000.00"
-                min="0"
                 required
               />
               <p className="text-xs text-slate-400 mt-1">Le montant total que le client doit payer</p>
@@ -1512,13 +1549,17 @@ export const OrderPaymentManagement: React.FC = () => {
             <div>
               <Input
                 label="✓ Avance Payée (1er Mois)"
-                type="number"
-                step="0.01"
-                value={orderForm.advanceMoney.toString()}
-                onChange={(value) => setOrderForm(prev => ({ ...prev, advanceMoney: parseFloat(value) || 0 }))}
+                type="text"
+                value={orderForm.advanceMoney === 0 ? '' : orderForm.advanceMoney.toString()}
+                onChange={(value) => {
+                  // Only allow numbers and decimal point
+                  const numbersOnly = value.replace(/[^0-9.]/g, '');
+                  // Prevent multiple decimal points
+                  const parts = numbersOnly.split('.');
+                  const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numbersOnly;
+                  setOrderForm(prev => ({ ...prev, advanceMoney: parseFloat(sanitized) || 0 }));
+                }}
                 placeholder="Ex: 1000.00"
-                min="0"
-                max={orderForm.downPayment.toString()}
               />
               <p className="text-xs text-slate-400 mt-1">Premier paiement déjà effectué (inclus dans le total)</p>
               {orderForm.advanceMoney > orderForm.downPayment && (
@@ -1531,11 +1572,16 @@ export const OrderPaymentManagement: React.FC = () => {
             <div>
               <Input
                 label="Mois de Paiement"
-                type="number"
-                value={orderForm.paymentMonths.toString()}
-                onChange={(value) => setOrderForm(prev => ({ ...prev, paymentMonths: parseInt(value) || 1 }))}
-                min="1"
-                max="24"
+                type="text"
+                value={orderForm.paymentMonths === 0 ? '' : orderForm.paymentMonths.toString()}
+                onChange={(value) => {
+                  // Only allow whole numbers
+                  const numbersOnly = value.replace(/[^0-9]/g, '');
+                  const numValue = parseInt(numbersOnly) || 0;
+                  // Limit to maximum 24 months
+                  setOrderForm(prev => ({ ...prev, paymentMonths: Math.min(numValue, 24) }));
+                }}
+                placeholder="Ex: 12"
               />
               <p className="text-xs text-slate-400 mt-1">Nombre total de mois (incluant l'avance)</p>
             </div>

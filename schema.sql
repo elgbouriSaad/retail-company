@@ -61,14 +61,17 @@ CREATE TABLE IF NOT EXISTS public.custom_orders (
   phone_number text NOT NULL,
   start_date timestamp with time zone,
   finish_date timestamp with time zone NOT NULL,
+  actual_delivery_date timestamp with time zone,
   down_payment numeric NOT NULL CHECK (down_payment >= 0::numeric),
   advance_money numeric NOT NULL DEFAULT 0 CHECK (advance_money >= 0::numeric),
   payment_months integer NOT NULL CHECK (payment_months > 0),
   total_amount numeric NOT NULL CHECK (total_amount >= 0::numeric),
   status text NOT NULL DEFAULT 'PENDING', -- PENDING, IN_PROGRESS, DELIVERED, CANCELLED
+  category_id uuid,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT custom_orders_pkey PRIMARY KEY (id)
+  CONSTRAINT custom_orders_pkey PRIMARY KEY (id),
+  CONSTRAINT custom_orders_category_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id) ON DELETE SET NULL
 );
 
 -- Custom Order Items table

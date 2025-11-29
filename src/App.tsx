@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AuthGuard } from './components/auth/AuthGuard';
+import { RoleBasedRedirect } from './components/auth/RoleBasedRedirect';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -27,9 +28,9 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Protected User Routes */}
+            {/* Protected User Routes - Only accessible by regular users */}
             <Route path="/dashboard" element={
-              <AuthGuard>
+              <AuthGuard requiredRole="user">
                 <Layout>
                   <DashboardPage />
                 </Layout>
@@ -37,7 +38,7 @@ function App() {
             } />
             
             <Route path="/shop" element={
-              <AuthGuard>
+              <AuthGuard requiredRole="user">
                 <Layout>
                   <ShopPage />
                 </Layout>
@@ -45,13 +46,14 @@ function App() {
             } />
             
             <Route path="/contact" element={
-              <AuthGuard>
+              <AuthGuard requiredRole="user">
                 <Layout>
                   <ContactPage />
                 </Layout>
               </AuthGuard>
             } />
             
+            {/* Profile - Accessible to both users and admins */}
             <Route path="/profile" element={
               <AuthGuard>
                 <Layout>
@@ -93,16 +95,8 @@ function App() {
               </AuthGuard>
             } />
 
-            <Route path="/admin/settings" element={
-              <AuthGuard requiredRole="admin">
-                <Layout>
-                  <Settings />
-                </Layout>
-              </AuthGuard>
-            } />
-
-            {/* Redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Redirects - Smart redirect based on user role */}
+            <Route path="/" element={<RoleBasedRedirect />} />
             
             {/* 404 Page */}
             <Route path="*" element={<NotFoundPage />} />

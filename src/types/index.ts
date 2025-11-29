@@ -59,12 +59,15 @@ export interface Order {
   referenceMaterials?: ReferenceMaterial[];
   startDate?: string;
   finishDate?: string;
+  actualDeliveryDate?: string;
   downPayment?: number;
   advanceMoney?: number;
   paymentMonths?: number;
   images?: string[];
   invoiceReference?: string;
   paymentSchedule?: PaymentInstallment[];
+  categoryId?: string;
+  categoryName?: string;
 }
 
 export interface OrderItem {
@@ -86,9 +89,11 @@ export interface OrderForm {
   images: File[];
   startDate: string;
   finishDate: string;
+  actualDeliveryDate: string;
   downPayment: number;
   advanceMoney: number;
   paymentMonths: number;
+  categoryId: string;
 }
 
 export interface PongeItem {
